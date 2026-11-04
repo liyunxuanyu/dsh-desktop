@@ -57,6 +57,7 @@ import { isDesktopRendererStatus, NextRendererRecovery, type DesktopNavigationCa
 import { deElevateAtStartup, lowIntegrityAtStartup, windowsElevation } from './windows-elevation.ts'
 import { createSandboxLaunchReporter, gpuLaunchFailure, lowIntegrityLaunchDialog, rendererLaunchFailure } from './sandbox-launch.ts'
 import { pickOutsideProgramDirectory, programDirectory, programDirectoryRefusal, refusedProgramDirectoryOverlap, type ProgramDirectoryOverlap, type ProgramDirectoryPurpose } from './program-directory.ts'
+import { applyPortableEnvironment } from './portable-environment.ts'
 import { startCrashReporting } from './crash-reporting.ts'
 
 // Below Medium integrity Chromium cannot start its GPU process and ends the launch without a word (#1564).
@@ -79,7 +80,11 @@ const root = dirname(NEXT_PACKAGE)
 const program = programDirectory(process.platform, process.execPath)
 // Read once: an in-app relaunch inherits this process's environment, not later user variables.
 const portable = existsSync(join(program, PORTABLE_MARKER))
-if (portable) mkdirSync(portableRoot(program), { recursive: true, mode: 0o700 })
+if (portable) {
+  mkdirSync(portableRoot(program), { recursive: true, mode: 0o700 })
+  // Every downloader this process starts writes into the package, never into the machine's home.
+  applyPortableEnvironment(process.env, program)
+}
 const environmentHome = portable ? portableDataDirectory(program) : process.env[DATA_DIRECTORY_VARIABLE] || undefined
 // The in-app choice keeps its former Next-owned anchor, whatever the variable says.
 const locationRoot = portable ? portableLocationRoot(program) : dataDirectoryLocationRoot(app.isPackaged, () => app.getPath('appData'), root)

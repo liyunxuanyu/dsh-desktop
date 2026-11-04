@@ -451,3 +451,121 @@ python runtime: 3.12.14
 
 同时回归了离线安装：干净 HOME 下 `install-plugins.sh` 仍装齐两个插件
 （`deps: ['@liustack/modsearch', 'dsh-ops']`）。
+
+## 包内自洽：在线安装、运行时下载、插件库更新（tag `v2.0.21-next-portable.18`）
+
+`v2.0.21-next-portable.17` 只解决了「运行时能找到」，还剩下三个真实缺口：
+
+1. 联网装插件时，pnpm 的 store / 元数据缓存 / 状态目录仍是**用户目录**下的默认位置
+   （`~/.local/share/pnpm`、`~/Library/pnpm`、`%LOCALAPPDATA%\pnpm`），
+   包搬走就丢；
+2. AI（或技能）用 `uv` / `pip` 下载的 Python 与包，同样落在 `~/.cache`、`~/.local`；
+3. 包内离线插件库**没有更新入口**，版本只能等下一次发版。
+
+### 一、程序自己解析包内路径，不依赖任何用户配置
+
+新增 `src/portable-environment.ts`。存在 `portable.json` 时，主进程在启动早期
+把下面这些变量写进**自己的进程环境**，Host、插件、终端、Agent 派生的子进程全部继承：
+
+| 变量 | 指向 |
+| --- | --- |
+| `DSH_PORTABLE_ROOT` | 包根 |
+| `XDG_CACHE_HOME` / `XDG_STATE_HOME` / `XDG_DATA_HOME` | `home/cache` / `home/state` / `home/share` |
+| `pnpm_config_store_dir` / `pnpm_config_cache_dir` / `pnpm_config_state_dir` | `registry/store` / `registry/cache` / `home/state/pnpm` |
+| `npm_config_cache` / `npm_config_prefix` | `home/cache/npm` / `home/npm-global` |
+| `PIP_CACHE_DIR` / `PYTHONUSERBASE` | `home/cache/pip` / `home/share/python-user` |
+| `UV_CACHE_DIR` / `UV_PYTHON_INSTALL_DIR` / `UV_TOOL_DIR` / `UV_TOOL_BIN_DIR` | `home/cache/uv` 等 |
+| `COREPACK_HOME` | `home/cache/corepack` |
+| `PATH` | 前置包内 `node/bin`、`python/bin`（Windows 另有 `python`、`Scripts`） |
+
+两点是实测出来的，不是推测：
+
+- **`pnpm_config_*` 必须用小写带下划线的形式**，pnpm 11 才认；
+  `NPM_CONFIG_CACHE` 这类大写变量会让 pnpm 把 `cacheDir` 解析成空值，
+  这也是 `.13` 之前离线安装偶发失败的原因之一。
+- 只设 `XDG_*` 时 pnpm 会把 store 放到 `$XDG_DATA_HOME/pnpm`、状态放到 `$XDG_STATE_HOME/pnpm`，
+  所以 `pnpm_config_*` 与 XDG 要一起给，才能精确落到 `registry/`。
+
+同一实现也接进了 `<包> dsh …` 这条 CLI 引导路径（`desktop-cli.ts`），
+即使从别的目录执行 CLI，插件命令依旧写进包内。
+
+### 二、Profile 的 pnpm 配置改成相对路径
+
+`NextProfiles.ensure()` / `create()` 现在会（仅在便携模式）向 Profile 的
+`pnpm-workspace.yaml` **追加**两条设置，而不是整份重写——上游模板里的
+`packages`、`nodeLinker: hoisted` 必须保留，整份覆盖会破坏安装布局：
+
+```yaml
+storeDir: ../../../../registry/store
+cacheDir: ../../../../registry/cache
+```
+
+相对路径指向包根，因此**包被改名、搬到别的目录之后仍然有效**
+（`.17` 及以前由启动器写入绝对路径，搬走就失效）。
+启动器与 `install-plugins.sh` 里原先那段「按绝对路径重写 yaml」的代码已删除。
+
+### 三、插件库更新
+
+新增 `tools/refresh-library.mjs`，由 `update-plugins.sh` / `update-plugins.cmd` 驱动，
+用**包内 node + pnpm** 重新解析并下载：
+
+```sh
+./update-plugins.sh              # 按 registry/plugins.json
+./update-plugins.sh --latest     # 全部取最新
+./update-plugins.sh dsh-ops@0.5.0
+```
+
+它把新版本写回包内三处（tarball、store、元数据缓存）并重写 `registry/plugins.json`，
+同时删掉同一插件的旧 tarball。全程只改包内文件。
+
+实测（在发布的 `.16` 包上，先补一份 `registry/plugins.json`）：
+
+```
+refreshing 2 plugin(s) into /tmp/rt/linux-unpacked/registry
++ @liustack/modsearch 5.10.11
++ dsh-ops 0.4.4
+  dsh-ops@0.4.4 → dsh-ops-0.4.4.tgz
+  @liustack/modsearch@5.10.11 → liustack-modsearch-5.10.11.tgz
+plugin library refreshed: dsh-ops@0.4.4, @liustack/modsearch@5.10.11
+```
+
+刷新后 store 与缓存都留在 `registry/` 下，离线安装依旧可用。
+
+### 四、在线安装的隔离验证
+
+在解压出来的包里，用**干净 HOME**跑一次在线安装：
+
+```sh
+# 用包内 node + pnpm，PATH 里只有 /usr/bin:/bin
+env -i HOME=/tmp/audit-home2 PATH=/usr/bin:/bin \
+  XDG_CACHE_HOME=<pkg>/home/cache XDG_STATE_HOME=<pkg>/home/state \
+  pnpm_config_store_dir=<pkg>/registry/store pnpm_config_cache_dir=<pkg>/registry/cache \
+  pnpm_config_state_dir=<pkg>/home/state/pnpm \
+  <pkg>/…/node/bin/node <pkg>/…/pnpm/bin/pnpm.mjs add dsh-context
+```
+
+结果：`+ dsh-context 0.80.3 / Done in 2.8s`，`find /tmp/audit-home2` 只有 **HOME 目录本身**——
+用户目录零写入。反证也确认过：不给这些变量时，pnpm 会写
+`$HOME/.local/state/pnpm/pnpm-state.json` 与 `$HOME/.local/share/pnpm/store`。
+
+### 五、CI 新增的断言
+
+`windows-portable` / `linux-portable` 两个 job 现在会：
+
+- 启动后检查 Profile 的 `pnpm-workspace.yaml` 含**相对** `storeDir`/`cacheDir`，
+  且 `home/cache`、`home/state` 存在；
+- 用干净 HOME 做一次在线安装，断言 HOME 内无任何写入；
+- 跑一次 `update-plugins.sh --latest`，断言 `registry/plugins.json` 被重写、
+  刷新后的库**仍能离线安装**；
+- 断言 `tools/refresh-library.mjs`、`update-plugins.sh` / `.cmd`、
+  `registry/plugins.json` 都随包发布。
+
+### 单元测试
+
+新增 `tests/portable-environment.spec.ts`（5 条）：路径全部落在包内、
+PATH 去重、非便携模式不改环境、Profile 的 pnpm 配置为相对路径、
+普通安装不写 `storeDir`。
+`tests` 全量（Node 24）：**111 个文件 / 983 通过 / 17 跳过**；
+`tsc --noEmit` 通过。
+（本地 `node` 是 22.11，缺 `module.registerHooks`，用 22.11 跑会有 24 条与本次改动无关的
+环境性失败；仓库要求 `^22.19` 或 `>=24`。）

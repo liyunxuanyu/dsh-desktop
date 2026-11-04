@@ -10,6 +10,8 @@ import { profileName as assertDesktopProfileName } from './profiles.ts'
 import { applyDesktopPackageManagerPolicy, withoutForwardedDesktopPnpmPolicy } from './pnpm-policy.ts'
 import { bundledPnpmInvocation, ELECTRON_HEADERS_URL } from './bundled-pnpm.ts'
 import { disableAsarArchiveView, type AsarArchiveProcess } from './asar-archive-policy.ts'
+import { applyPortableEnvironmentIfPortable } from './portable-environment.ts'
+import { programDirectory } from './program-directory.ts'
 
 const RUN_AS_NODE = 'ELECTRON_RUN_AS_NODE'
 const DEFAULT_PROFILE = 'DSH_DESKTOP_DEFAULT_PROFILE'
@@ -106,6 +108,8 @@ export async function runDesktopDshCli(
   asarProcess: AsarArchiveProcess = process,
 ): Promise<void> {
   applyDesktopPackageManagerPolicy(environment)
+  // `<package> dsh …` run from any directory still writes into the package that owns it.
+  applyPortableEnvironmentIfPortable(environment, programDirectory(process.platform, process.execPath))
   const profileName = takeDefaultProfile(environment)
   clearElectronRunAsNode(environment)
   // The CLI's agent lists and reads user workspaces; see asar-archive-policy.ts.

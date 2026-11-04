@@ -14,6 +14,7 @@ import { RETIRED_SCHEDULE_BUNDLE, retiredSchedulePatch } from './profile-schedul
 import { removeLinkProjectionsSafely } from '../../dsh-plugin-desktop/src/link-projections.ts'
 import { insideArchive, unpackedPath } from './asar-archive-policy.ts'
 import { PROFILE_TEMPLATES } from './upstream-family.ts'
+import { PORTABLE_MARKER } from './data-directory.ts'
 
 export const NEXT_PACKAGE = fileURLToPath(new URL('../package.json', import.meta.url))
 /**
@@ -132,6 +133,26 @@ export class NextProfiles {
       try { return existsSync(join(this.directory(entry.name), 'package.json')) } catch { return false }
     }).map(entry => entry.name).sort()
   }
+  /**
+   * Keep pnpm's store, metadata cache and offline preference inside the package that owns
+   * this Profile. Relative paths survive moving or renaming the package, and the file is
+   * written before the first install so a plugin added from the interface lands in the
+   * package rather than in the machine's home directory.
+   */
+  private preparePackageManager(dir: string): void {
+    const program = dirname(dirname(this.home))
+    if (!existsSync(join(program, PORTABLE_MARKER))) return
+    const file = join(dir, 'pnpm-workspace.yaml')
+    // The upstream template supplies `packages`/`nodeLinker`; only the two portable keys are ours.
+    const settings = ['storeDir: ../../../../registry/store', 'cacheDir: ../../../../registry/cache']
+    try {
+      const current = existsSync(file) ? readFileSync(file, 'utf8') : ''
+      const added = settings.filter(setting => !current.split('\n').some(line => line.startsWith(`${setting.split(':')[0]}:`)))
+      if (added.length === 0) return
+      const separator = current.length === 0 || current.endsWith('\n') ? '' : '\n'
+      atomicText(file, `${current}${separator}# 便捷包：pnpm 的 store 与元数据缓存留在包内，路径相对包根，随包移动。\n${added.join('\n')}\n`)
+    } catch { /* A read-only installation still runs; the environment variables cover pnpm. */ }
+  }
   ensure(name: string): string {
     const dir = this.directory(name)
     const existing = existsSync(join(dir, 'package.json'))
@@ -150,6 +171,7 @@ export class NextProfiles {
       }
     } else this.setFeatures(name, DEFAULT_FEATURES)
     this.migrateSchedule(name)
+    this.preparePackageManager(dir)
     return dir
   }
   create(name: string): string {
@@ -159,6 +181,7 @@ export class NextProfiles {
     initProfile(dir, WEB_BUNDLES)
     this.setFeatures(name, DEFAULT_FEATURES)
     this.migrateSchedule(name)
+    this.preparePackageManager(dir)
     return dir
   }
   features(name: string): Features {

@@ -107,7 +107,24 @@ DSH 只是客户端，模型要接你自己的服务商。启动后：
 包内还带了：
 
 - Node 24.21.0、pnpm 11.28.5、Python 3.12.14（技能、MCP 服务、脚本工具都能直接用）；
-- `registry/`：预装插件的离线包与 pnpm store（25 MB + 元数据缓存）。
+- `registry/`：预装插件的离线包、pnpm store 与元数据缓存；
+- `tools/refresh-library.mjs`：刷新包内插件库的脚本（见第 7 节）。
+
+### 所有下载都落在包里
+
+不需要配置任何环境变量，程序启动时自己按包目录算好路径，
+并只对**它自己的子进程**（界面、Host、插件、终端、Agent 执行的命令）生效：
+
+| 工具 | 落在哪 |
+| --- | --- |
+| pnpm（界面装插件、终端 `pnpm add`） | `registry/store`、`registry/cache` |
+| npm 全局安装 | `home/npm-global` |
+| pip / `pip install --user` | `home/cache/pip`、`home/share/python-user` |
+| uv（下载 Python、装工具） | `home/cache/uv`、`home/share/python`、`home/share/uv-tools` |
+| 其它遵循 XDG 的工具 | `home/cache`、`home/state`、`home/share` |
+
+也就是说：**用户目录（`~/.cache`、`~/.local`、`~/.npm`）不会被写**，
+把整个文件夹挪走、复制走，缓存和下载的运行时都跟着走。
 
 ## 7. 装更多插件
 
@@ -132,6 +149,26 @@ install-plugins.cmd
 - 如果拿到了单独的 `*-offline-plugins.tar.gz`，解压得到 `plugins-offline/`，
   放在包目录旁边即可被自动发现，也可以把路径作为参数传进去；
 - 装完**重启应用**生效。
+
+### 更新包里的插件库（联网时）
+
+离线库会过期。在包目录执行：
+
+```sh
+./update-plugins.sh                 # 按 registry/plugins.json 的清单刷新
+./update-plugins.sh --latest        # 全部升到最新
+./update-plugins.sh dsh-ops@0.5.0   # 只更新 / 指定版本
+```
+
+```bat
+update-plugins.cmd --latest
+```
+
+它用**包内 node + pnpm** 重新解析下载，把新版本的 tarball、store 条目、
+元数据缓存和 `plugins.json` 写回 `registry/`。
+刷新后界面里装/更新插件就走了新库，整个过程只改包内文件，不碰系统目录。
+
+> 只想看当前库里有什么：`./install-plugins.sh --list`。
 
 ## 8. 数据在哪、怎么清空带走
 

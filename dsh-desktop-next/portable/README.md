@@ -20,10 +20,12 @@
 DSH-NEXT.cmd / DSH-NEXT.sh          启动器（推荐用它启动）
 DSH-NEXT-reset.cmd / .sh            清空用户数据（换人/换机前用）
 install-plugins.cmd / .sh           从离线仓库装插件
+update-plugins.cmd / .sh            联网刷新包内插件库
 verify-download.cmd / .ps1 / .sh    校验你下载的压缩包是否完整
 portable.json                       便携标记：程序据此把数据写进 ./home
 .npmrc                              包内 npm 偏好设置
-registry/                           离线插件仓库（插件包 + pnpm store，约 25 MB）
+registry/                           离线插件仓库（插件包 + pnpm store + 元数据缓存）
+tools/                              维护脚本（刷新插件库）
 resources/                          程序本体与内置运行时（Node / pnpm / Python）
 home/                               你的数据（第一次启动后自动出现）
 ```
@@ -73,7 +75,9 @@ python/bin/python3     Python 3.12.14（含 pip 与常用库）
 - 少数需要“绝对路径”的场景（例如 Office 技能），应用会通过
   `dsh-tool-workspace-dependencies` 工具把上面这些绝对路径告诉模型。
 
-唯一的前提是**用 `DSH-NEXT.cmd` / `./DSH-NEXT.sh` 启动**——它负责设置 PATH。
+这些路径由程序自己按包目录算出来（`src/portable-environment.ts`），
+**不需要你配置任何环境变量**：双击 `dsh-desktop-next` / `DSH NEXT.exe` 直接启动也一样。
+`DSH-NEXT.cmd` / `./DSH-NEXT.sh` 只是顺手把解释器提前放进 PATH，方便你自己开终端调试。
 
 ## 五、再装插件
 
@@ -98,17 +102,39 @@ install-plugins.cmd
 
 ### 离线仓库是怎么生效的
 
-启动器和 `install-plugins` 会把**绝对路径**写进各 Profile 的 `pnpm-workspace.yaml`：
+程序在创建/打开每个 Profile 时，把**相对路径**追加进该 Profile 的 `pnpm-workspace.yaml`：
 
 ```yaml
-storeDir: <本目录>/registry/store
-cacheDir: <本目录>/registry/cache
-preferOffline: true
+storeDir: ../../../../registry/store
+cacheDir: ../../../../registry/cache
 ```
 
-pnpm 11 只认这份配置（`.npmrc` 里的 `storeDir`/`cacheDir` 与 `NPM_CONFIG_*` 环境变量都不生效），
-所以界面里装插件也会命中包内仓库。该文件在**第一次启动之后**由启动器写入，
-跑一次 `install-plugins.sh` 也会立即补齐。
+相对路径指向包根，所以**把文件夹改名或搬到别处也不会失效**。
+同时程序把 pnpm / npm / pip / uv 的 store、缓存、状态目录全部指向包内
+（`DSH_PORTABLE_ROOT`、`pnpm_config_store_dir`、`XDG_CACHE_HOME` 等只对子进程生效，
+你不需要设置它们），因此：
+
+- 界面里装插件 → 包内 `registry/store`、`registry/cache`；
+- 终端里 `pnpm add` / `npm i -g` → 同样落在包内；
+- AI 用 `uv` / `pip` 下载 Python 或包 → 落在包内 `home/share/`；
+- 用户目录（`~/.cache`、`~/.local/state`、`~/.npm`）**不会被写**。
+
+### 更新自带插件库
+
+包里的离线插件库会过期。联网时执行：
+
+```sh
+./update-plugins.sh                # 按 registry/plugins.json 的清单刷新
+./update-plugins.sh --latest       # 全部升到最新版
+./update-plugins.sh dsh-ops@0.5.0  # 指定插件
+```
+
+```bat
+update-plugins.cmd --latest
+```
+
+它用**包内 node + pnpm** 重新解析并下载，写回 `registry/`（tarball、store、元数据缓存、
+`plugins.json`），装好的插件随后在界面里就能直接更新；全程只改包内文件。
 
 ## 六、数据、清空、带走
 

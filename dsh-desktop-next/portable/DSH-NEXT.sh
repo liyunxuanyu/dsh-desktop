@@ -6,18 +6,9 @@ DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 export DSH_DESKTOP_NEXT_HOME="$DIR/home/data"
 export NPM_CONFIG_USERCONFIG="$DIR/.npmrc"
 mkdir -p "$DSH_DESKTOP_NEXT_HOME"
-# pnpm 11 只从 pnpm-workspace.yaml（或命令行）读 storeDir/cacheDir；npmrc 与 NPM_CONFIG_* 都不生效。
-# 用绝对路径写一份，界面里装插件就直接用包内离线仓库。
-for profile in "$DSH_DESKTOP_NEXT_HOME"/profiles/*/; do
-  [ -d "$profile" ] || continue
-  cat > "$profile/pnpm-workspace.yaml" <<YAML
-storeDir: $DIR/registry/store
-cacheDir: $DIR/registry/cache
-preferOffline: true
-YAML
-done
-# 把包内运行时放进 PATH：插件、技能、MCP 服务里直接写 node / python3 / npm 也能命中包内的，
-# 不必要求用户机器上装过 Node 或 Python。
+# store、缓存、运行时路径都由程序自己从包目录解析并写进当前进程环境（见 src/portable-environment.ts），
+# 这里不写死任何路径：包被改名、移动或放在带空格的目录里都不会失效。
+# 启动器只把包内解释器提前放进 PATH，方便插件、技能和 MCP 服务直接调用 node / python3。
 RT="$DIR/resources/runtime/x64/primary-runtime/dependencies"
 if [ -d "$RT" ]; then
   PATH="$RT/node/bin:$RT/python/bin:$PATH"

@@ -68,13 +68,6 @@ fi
 # 路径统一用命令行标志传入（camelCase，等号形式）。
 unset NPM_CONFIG_CACHE NPM_CONFIG_STORE_DIR 2>/dev/null || true
 export NPM_CONFIG_USERCONFIG="$PKG/.npmrc"
-# pnpm 11 从 pnpm-workspace.yaml 读 storeDir/cacheDir；在 Profile 里写绝对路径，命令行标志作为兜底。
-cat > "$PROFILE_DIR/pnpm-workspace.yaml" <<YAML
-storeDir: $BUNDLE/store
-cacheDir: $BUNDLE/cache
-preferOffline: true
-YAML
-
 RT="$PKG/resources/runtime/x64/primary-runtime/dependencies"
 PATH="$RT/node/bin:$RT/python/bin:$PATH"
 export PATH

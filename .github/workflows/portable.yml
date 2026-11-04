@@ -87,6 +87,10 @@ jobs:
           if (-not (Test-Path (Join-Path $store 'v11'))) { throw 'registry store was not populated' }
           if (-not (Test-Path (Join-Path $cache 'v12/metadata'))) { throw 'registry metadata cache was not populated' }
           & npm pack --silent --pack-destination (Join-Path $pkg 'registry') @specs
+          # The library manifest lets the package refresh its own library later (update-plugins).
+          node -e "const m=require('./dsh-desktop-next/package.json');const d=m.dependencies;require('fs').writeFileSync(process.argv[1], JSON.stringify({plugins: m.dsh.portableBundles.map(name=>({name, version: d[name]??'latest'}))}, null, 2)+'\n')" (Join-Path $pkg 'registry/plugins.json')
+          if (-not (Test-Path (Join-Path $pkg 'tools/refresh-library.mjs'))) { throw 'library refresh tool missing from the package' }
+          if (-not (Test-Path (Join-Path $pkg 'update-plugins.cmd'))) { throw 'update-plugins.cmd missing from the package' }
           Get-ChildItem (Join-Path $pkg 'registry')
       - name: Assert the preinstalled plugins travel with the package
         shell: pwsh
@@ -184,6 +188,11 @@ jobs:
           test -d "$pkg/registry/store/v11" || { echo 'registry store was not populated'; exit 1; }
           test -d "$pkg/registry/cache/v12/metadata" || { echo 'registry metadata cache was not populated'; exit 1; }
           npm pack --silent --pack-destination "$pkg/registry" $specs
+          # The library manifest lets the package refresh its own library later (update-plugins).
+          node -e "const m=require('./dsh-desktop-next/package.json');const d=m.dependencies;require('fs').writeFileSync(process.argv[1], JSON.stringify({plugins: m.dsh.portableBundles.map(name=>({name, version: d[name]??'latest'}))}, null, 2)+'\n')" "$pkg/registry/plugins.json"
+          cat "$pkg/registry/plugins.json"
+          test -f "$pkg/tools/refresh-library.mjs" || { echo 'library refresh tool missing from the package'; exit 1; }
+          test -f "$pkg/update-plugins.sh" || { echo 'update-plugins.sh missing from the package'; exit 1; }
           echo "SPECS=$specs" >> "$GITHUB_ENV"
       - name: Pack the standalone offline plugin bundle
         run: |
@@ -226,6 +235,15 @@ jobs:
           test ! -d "$HOME/.dsh/profiles" || { echo 'wrote ~/.dsh despite portable marker'; exit 1; }
           ls "$pkg/home/data"
           pkill -f dsh-desktop-next || true
+          # The application itself points the Profile's pnpm at the package: relative paths, so the
+          # folder can be moved after the first launch without breaking offline installs.
+          workspace="$pkg/home/data/profiles/desktop/pnpm-workspace.yaml"
+          test -f "$workspace" || { echo 'the Profile got no package-local pnpm settings'; ls "$pkg/home/data/profiles"; exit 1; }
+          cat "$workspace"
+          grep -q 'storeDir: \.\./\.\./\.\./\.\./registry/store' "$workspace" || { echo 'pnpm store is not inside the package'; exit 1; }
+          grep -q 'cacheDir: \.\./\.\./\.\./\.\./registry/cache' "$workspace" || { echo 'pnpm cache is not inside the package'; exit 1; }
+          # Cache and state roots the application exports to its children.
+          test -d "$pkg/home/cache" && test -d "$pkg/home/state" || { echo 'portable cache/state roots were not created'; exit 1; }
       - name: Install the offline bundle into a scratch profile
         run: |
           set -euo pipefail
@@ -237,6 +255,47 @@ jobs:
             sh "$(pwd)/offline/plugins-offline/install-plugins.sh" "$(pwd)/offline/plugins-offline"
           node -e "const d=require('$profile/package.json'); if (!d.dependencies || !d.dependencies['dsh-ops']) throw new Error('offline install produced no dependencies'); console.log('offline install ok:', Object.keys(d.dependencies).join(', '))"
           ls "$profile/node_modules"
+          rm -rf "$pkg/home/data"
+      - name: Keep every online download inside the package
+        # A user who installs a plugin from the interface, or whose agent downloads a runtime,
+        # must not leave bytes in the machine's home directory.
+        run: |
+          set -euo pipefail
+          pkg="$(pwd)/dsh-desktop-next/dist/linux-unpacked"
+          audit=$(mktemp -d)
+          mkdir -p "$pkg/home/data/profiles/probe"
+          printf '{"name":"probe","private":true,"dsh":{"profile":{"bundles":[]}}}\n' > "$pkg/home/data/profiles/probe/package.json"
+          node_bin="$pkg/resources/runtime/x64/primary-runtime/dependencies/node/bin/node"
+          pnpm_mjs="$pkg/resources/app.asar.unpacked/node_modules/pnpm/bin/pnpm.mjs"
+          # The same variables the application exports to its children.
+          (
+            cd "$pkg/home/data/profiles/probe"
+            env -i HOME="$audit" PATH=/usr/bin:/bin \
+              XDG_CACHE_HOME="$pkg/home/cache" XDG_STATE_HOME="$pkg/home/state" XDG_DATA_HOME="$pkg/home/share" \
+              pnpm_config_store_dir="$pkg/registry/store" pnpm_config_cache_dir="$pkg/registry/cache" \
+              pnpm_config_state_dir="$pkg/home/state/pnpm" npm_config_cache="$pkg/home/cache/npm" \
+              "$node_bin" "$pnpm_mjs" add dsh-ops --config.minimumReleaseAge=0
+          )
+          find "$audit" -mindepth 1 | head -20
+          test -z "$(find "$audit" -mindepth 1 -print -quit)" || { echo 'an online install wrote outside the package'; exit 1; }
+          test -d "$pkg/home/data/profiles/probe/node_modules/dsh-ops" || { echo 'online install produced nothing'; exit 1; }
+          rm -rf "$pkg/home/data"
+      - name: Refresh the packaged plugin library
+        run: |
+          set -euo pipefail
+          pkg="$(pwd)/dsh-desktop-next/dist/linux-unpacked"
+          before=$(node -p "require('$pkg/registry/plugins.json').plugins.map(p=>p.name+'@'+p.version).join(',')")
+          sh "$pkg/update-plugins.sh" --latest
+          after=$(node -p "require('$pkg/registry/plugins.json').plugins.map(p=>p.name+'@'+p.version).join(',')")
+          echo "plugin library: $before -> $after"
+          test -n "$after" || { echo 'the refresh wrote no plugin list'; exit 1; }
+          test -f "$pkg/registry/plugins.json" || { echo 'plugins.json disappeared'; exit 1; }
+          # A refreshed library must still install offline from the store it just grew.
+          mkdir -p "$pkg/home/data/profiles/probe"
+          printf '{"name":"probe","private":true,"dsh":{"profile":{"bundles":[]}}}\n' > "$pkg/home/data/profiles/probe/package.json"
+          ( cd "$pkg/home/data/profiles/probe" && DSH_DESKTOP_NEXT_HOME="$pkg/home/data" \
+              sh "$pkg/install-plugins.sh" "$pkg/registry" )
+          node -e "const d=require('$pkg/home/data/profiles/probe/package.json'); if (!d.dependencies || Object.keys(d.dependencies).length === 0) throw new Error('the refreshed library no longer installs offline'); console.log('refreshed library installs offline:', Object.keys(d.dependencies).join(', '))"
           rm -rf "$pkg/home/data"
       - name: Archive the application directory
         run: |
