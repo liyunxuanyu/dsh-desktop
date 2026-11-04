@@ -270,3 +270,17 @@ six pages, artwork, back navigation, choices, skip, completion, inert cleanup, a
 全量桌面端单测：**110 个文件 / 978 通过 / 17 跳过**。
 
 发布：https://github.com/liyunxuanyu/dsh-desktop/releases/tag/v2.0.21-next-portable.10
+
+## 空清单重构与上游分支（tag `v2.0.21-next-portable.11`）
+
+两个目标：
+
+1. **允许空清单**：`readPortableBundles()` 现在把「没写 `dsh.portableBundles`」视为空数组，
+   只有格式非法才抛错。这样上游分支可以保持 `portableBundles: []` 的中立默认，
+   而分发版填两个插件——代码完全一致，只有数据不同。
+2. **给上游准备一个只含核心改动的分支**：`upstream/portable-core`（从 `117e489` 起），
+   包含 `data-directory.ts` / `main.ts` / `profiles.ts` 的便携模式、对应单测、
+   `portable/` 下的启动器与 reset 脚本、以及说明；**不含**我们的 CI workflow、
+   离线插件包、校验脚本和具体插件清单。
+
+本地全量单测：110 个文件 / 978 通过 / 17 跳过。
