@@ -17,9 +17,17 @@ for arg in "$@"; do
     *) BUNDLE="$arg" ;;
   esac
 done
-# 脚本可能被放在插件包外面（同级 plugins-offline/），也可能就在插件包里面。
+# 目标便捷包：安装脚本既可能被放在包的顶层，也可能独立分发。
+PKG="${DSH_NEXT_PACKAGE:-$DIR}"
+if [ ! -x "$PKG/dsh-desktop-next" ] && [ ! -f "$PKG/dsh-desktop-next.exe" ] && [ ! -x "$PKG/DSH NEXT.exe" ]; then
+  PKG="$DIR"
+fi
+
+# 插件包来源优先级：显式参数 > 同目录 plugins-offline/ > 包内 registry/ > 脚本所在目录
 if [ -z "$BUNDLE" ]; then
-  if [ -d "$DIR/plugins-offline" ]; then BUNDLE="$DIR/plugins-offline"; else BUNDLE="$DIR"; fi
+  if [ -d "$DIR/plugins-offline" ]; then BUNDLE="$DIR/plugins-offline"
+  elif [ -d "$PKG/registry" ]; then BUNDLE="$PKG/registry"
+  else BUNDLE="$DIR"; fi
 fi
 
 if [ ! -d "$BUNDLE" ]; then
@@ -48,13 +56,6 @@ if [ "$LIST_ONLY" -eq 1 ]; then
     echo "store：$(du -sh "$BUNDLE/store" 2>/dev/null | cut -f1)"
   fi
   exit 0
-fi
-
-# 定位目标便捷包：安装脚本既可能被放在包的顶层，也可能独立分发。
-PKG="${DSH_NEXT_PACKAGE:-$DIR}"
-if [ ! -x "$PKG/dsh-desktop-next" ] && [ ! -f "$PKG/dsh-desktop-next.exe" ]; then
-  echo "未找到便捷包根目录（\$DSH_NEXT_PACKAGE 或本目录）" >&2
-  exit 1
 fi
 
 export DSH_DESKTOP_NEXT_HOME="${DSH_DESKTOP_NEXT_HOME:-$PKG/home/data}"

@@ -143,6 +143,11 @@ jobs:
         run: |
           yarn workspace dsh-community-market build
           yarn workspace dsh-desktop-next build
+      - name: UI onboarding smoke (real frontend, headless Chromium)
+        run: |
+          set -euo pipefail
+          node dsh-desktop-next/node_modules/playwright/cli.js install chromium-headless-shell
+          yarn workspace dsh-desktop-next verify:onboarding
       - name: Package the unpacked application
         env:
           DSH_PACKAGE_CHECK_ALREADY_RAN: '1'

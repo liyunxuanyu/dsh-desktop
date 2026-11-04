@@ -11,8 +11,11 @@ for %%a in (%*) do (
   if /I "%%~a"=="-l" set "LIST_ONLY=1"
   if not "%%~a"=="--list" if not "%%~a"=="-l" set "BUNDLE=%%~a"
 )
+if "%DSH_NEXT_PACKAGE%"=="" set "DSH_NEXT_PACKAGE=%DIR%"
 if "%BUNDLE%"=="" (
-  if exist "%DIR%\plugins-offline" (set "BUNDLE=%DIR%\plugins-offline") else (set "BUNDLE=%DIR%")
+  if exist "%DIR%\plugins-offline" (set "BUNDLE=%DIR%\plugins-offline") else (
+    if exist "%DSH_NEXT_PACKAGE%\registry" (set "BUNDLE=%DSH_NEXT_PACKAGE%\registry") else (set "BUNDLE=%DIR%")
+  )
 )
 if not exist "%BUNDLE%" (echo 找不到插件包目录：%BUNDLE% & exit /b 1)
 
@@ -22,7 +25,6 @@ if "%LIST_ONLY%"=="1" (
   exit /b 0
 )
 
-if "%DSH_NEXT_PACKAGE%"=="" set "DSH_NEXT_PACKAGE=%DIR%"
 if "%DSH_DESKTOP_NEXT_HOME%"=="" set "DSH_DESKTOP_NEXT_HOME=%DSH_NEXT_PACKAGE%\home\data"
 set "NPM_CONFIG_USERCONFIG=%DSH_NEXT_PACKAGE%\.npmrc"
 set "NPM_CONFIG_STORE_DIR=%BUNDLE%\store"
