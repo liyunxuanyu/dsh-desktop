@@ -34,6 +34,8 @@ if [ ! -d "$BUNDLE" ]; then
   echo "找不到插件包目录：$BUNDLE" >&2
   exit 1
 fi
+# 相对路径必须在这里定死：下面会 cd 进 Profile，相对路径就找不到插件包了。
+BUNDLE=$(CDPATH= cd -- "$BUNDLE" && pwd)
 
 # 清单优先读打包时写下的 plugins.json，缺失时退回 tgz 文件名。
 list_plugins() {

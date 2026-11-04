@@ -569,3 +569,60 @@ PATH 去重、非便携模式不改环境、Profile 的 pnpm 配置为相对路�
 `tsc --noEmit` 通过。
 （本地 `node` 是 22.11，缺 `module.registerHooks`，用 22.11 跑会有 24 条与本次改动无关的
 环境性失败；仓库要求 `^22.19` 或 `>=24`。）
+
+## 发布版实测与两个批处理修复（tag `v2.0.21-next-portable.19` / `.20`）
+
+`.18` / `.19` 的 Linux 与 Windows 两个 job 全绿，产物：
+
+| 产物 | 体积 | SHA256（`.19`） |
+| --- | --- | --- |
+| `DSH-NEXT-2.0.21-next-x64-Portable.zip` | 555.36 MB | `6511b622…e9b59c` |
+| `DSH-NEXT-2.0.21-next-linux-x64-portable.tar.gz` | 425.60 MB | `b7d8f651…4892a32e` |
+| `DSH-NEXT-2.0.21-next-offline-plugins.tar.gz` | 17.46 MB | `5a6e229b…253c77` |
+
+下载 `.19` 的 Linux 包并解压后复核：
+
+- `.cmd` 五种脚本都是 **ASCII + CRLF**（`file` 显示 "ASCII text, with CRLF line terminators"）；
+- `registry/` 里有 `dsh-ops-0.4.4.tgz`、`liustack-modsearch-5.10.11.tgz`、`store/`、`cache/`、`plugins.json`；
+- `tools/refresh-library.mjs` 在包内，`home/{bin,cache,npm-global,share,state}` 已由程序创建；
+- `./update-plugins.sh --latest` 在干净环境跑通，仍解析出两个插件并整份重写 `plugins.json`；
+- 干净 HOME 下用包内 node/pnpm 离线安装，`find /tmp/audit19` 只有 HOME 本身，
+  插件依赖（`@liustack/modsearch`、`dsh-ops`）落在包内 Profile。
+
+### 修复一：批处理文件的编码
+
+Windows 那个 job 在 `.18` 上失败在「刷新插件库」：
+
+```
+'em' is not recognized as an internal or external command
+'ython' is not recognized as an internal or external command
+'xe"' is not recognized as an internal or external command
+```
+
+不是逻辑错误，是 **cmd.exe 用控制台代码页（中文 Windows 为 936）逐行解码批处理文件**，
+UTF-8 的中文注释被当成 GBK 双字节，末尾吃掉了下一行的开头几个字节，
+`set "PATH=%RT%\python;..."` 被切成 `ython`。四个 `.cmd` 全部改成 **纯 ASCII、CRLF**，
+真正的逻辑（含中文输出需求）交给 `.mjs` / `.ps1`；`.ps1` 加了 UTF-8 BOM 供
+Windows PowerShell 5.1 正确读取。
+
+顺带修掉两个既有缺陷：
+
+- `DSH-NEXT-reset.cmd` 用了 `!ANSWER!` 却没开 `enabledelayedexpansion`，
+  确认提示永远被当成「取消」；
+- `.gitattributes` 里 `*.cmd text eol=crlf` 写在 `* text=auto eol=lf` **之前**，
+  同属性后匹配者生效，于是发布包里仍是 LF——规则移到末尾后 CI 断言 CRLF。
+
+### 修复二：相对路径的插件包
+
+`install-plugins.sh` 先 `cd` 进 Profile 再遍历 `"$BUNDLE"/*.tgz`。
+若把插件包目录作为**相对路径**传入（`./install-plugins.sh registry`），
+`cd` 之后这个路径就不存在了：脚本打印「将要安装」后静默跳过，一个插件都没装。
+现在脚本会在 `cd` 之前把 `BUNDLE` 解析成绝对路径；`.cmd` 用 `for %%I in ("%BUNDLE%")`
+取 `%%~fI` 做同样的事。CI 新增一条「用相对路径装包内库」的断言。
+
+### 最终状态
+
+- `v2.0.21-next-portable.20`：Windows + Linux 两个 job 全绿，Release 自动生成；
+- 单元测试 983 通过；`tsc --noEmit` 通过；
+- 包内一切可变数据（数据、插件、store、缓存、状态、下载的运行时）都在包目录内，
+  `~/.cache`、`~/.local`、`~/.npm` 不再产生写入，删掉 `home/` 即可把包转交他人。

@@ -9,6 +9,8 @@
 
 **Windows**：双击 **`DSH-NEXT.cmd`**，等窗口出现。
 若弹出 SmartScreen 蓝框，点「更多信息 → 仍要运行」。
+（Windows 的 `.cmd` 脚本刻意只用 ASCII 输出：cmd.exe 按控制台代码页解码批处理，
+中文多字节字符会吞掉下一行的开头。说明文档仍是中文。）
 
 **Linux**：在终端执行 **`./DSH-NEXT.sh`**（如果提示没有执行权限，先 `chmod +x DSH-NEXT.sh`）。
 

@@ -23,6 +23,9 @@ if not exist "%BUNDLE%" (
   exit /b 1
 )
 
+rem Resolve the bundle to an absolute path: the loop below changes directory first.
+for %%I in ("%BUNDLE%") do set "BUNDLE=%%~fI"
+
 if "%LIST_ONLY%"=="1" (
   echo Offline bundle: %BUNDLE%
   for %%f in ("%BUNDLE%\*.tgz") do echo   %%~nxf

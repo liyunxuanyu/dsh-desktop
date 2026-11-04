@@ -334,6 +334,18 @@ jobs:
           node -e "const d=require('$profile/package.json'); if (!d.dependencies || !d.dependencies['dsh-ops']) throw new Error('offline install produced no dependencies'); console.log('offline install ok:', Object.keys(d.dependencies).join(', '))"
           ls "$profile/node_modules"
           rm -rf "$pkg/home/data"
+      - name: Install the in-package library through a relative path
+        # The installer changes directory before reading the bundle, which once made a
+        # relative bundle path resolve to nothing and install silently nothing.
+        run: |
+          set -euo pipefail
+          pkg="$(pwd)/dsh-desktop-next/dist/linux-unpacked"
+          profile="$pkg/home/data/profiles/desktop"
+          mkdir -p "$profile"
+          printf '{"name":"probe","private":true,"dsh":{"profile":{"bundles":[]}}}\n' > "$profile/package.json"
+          ( cd "$pkg" && sh ./install-plugins.sh registry )
+          node -e "const d=require('$profile/package.json'); const names=Object.keys(d.dependencies||{}); if (names.length === 0) throw new Error('a relative bundle path installed nothing'); console.log('relative path install ok:', names.join(', '))"
+          rm -rf "$pkg/home/data"
       - name: Keep every online download inside the package
         # A user who installs a plugin from the interface, or whose agent downloads a runtime,
         # must not leave bytes in the machine's home directory.
