@@ -1,13 +1,53 @@
 #!/bin/sh
-# 把本目录携带的插件装进同一个便捷包的当前激活 Profile（离线，不需要网络）。
-# 用法：./install-plugins.sh [插件包目录]   默认指向 ./plugins-offline
+# 把离线插件包里的插件装进便捷包当前的 Profile（不需要网络）。
+#
+# 用法：
+#   ./install-plugins.sh                 # 安装 ./plugins-offline 里的全部插件
+#   ./install-plugins.sh <插件包目录>     # 指定插件包目录
+#   ./install-plugins.sh --list          # 只列出清单，不安装
 set -eu
 DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-BUNDLE="${1:-$DIR/plugins-offline}"
+
+LIST_ONLY=0
+BUNDLE=""
+for arg in "$@"; do
+  case "$arg" in
+    --list|-l) LIST_ONLY=1 ;;
+    -*) echo "未知参数：$arg" >&2; exit 1 ;;
+    *) BUNDLE="$arg" ;;
+  esac
+done
+# 脚本可能被放在插件包外面（同级 plugins-offline/），也可能就在插件包里面。
+if [ -z "$BUNDLE" ]; then
+  if [ -d "$DIR/plugins-offline" ]; then BUNDLE="$DIR/plugins-offline"; else BUNDLE="$DIR"; fi
+fi
 
 if [ ! -d "$BUNDLE" ]; then
   echo "找不到插件包目录：$BUNDLE" >&2
   exit 1
+fi
+
+# 清单优先读打包时写下的 plugins.json，缺失时退回 tgz 文件名。
+list_plugins() {
+  if [ -f "$BUNDLE/plugins.json" ]; then
+    "$(command -v node || echo node)" -e '
+      const doc = require(process.argv[1]);
+      doc.plugins.forEach(p => console.log(`  ${p.name}@${p.version}`));
+    ' "$BUNDLE/plugins.json" 2>/dev/null && return 0
+  fi
+  for tgz in "$BUNDLE"/*.tgz; do
+    [ -e "$tgz" ] || continue
+    echo "  $(basename "$tgz" .tgz)"
+  done
+}
+
+if [ "$LIST_ONLY" -eq 1 ]; then
+  echo "离线插件包：$BUNDLE"
+  list_plugins
+  if [ -d "$BUNDLE/store" ]; then
+    echo "store：$(du -sh "$BUNDLE/store" 2>/dev/null | cut -f1)"
+  fi
+  exit 0
 fi
 
 # 定位目标便捷包：安装脚本既可能被放在包的顶层，也可能独立分发。
@@ -35,6 +75,8 @@ if [ ! -d "$PROFILE_DIR" ]; then
   exit 1
 fi
 
+echo "将要安装："
+list_plugins
 cd "$PROFILE_DIR"
 for tgz in "$BUNDLE"/*.tgz; do
   [ -e "$tgz" ] || continue

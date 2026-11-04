@@ -167,6 +167,8 @@ jobs:
           test -d "$out/store/v11" || { echo 'offline store was not populated'; exit 1; }
           npm pack --silent --pack-destination "$out" $SPECS
           cp dsh-desktop-next/portable/install-plugins.sh dsh-desktop-next/portable/install-plugins.cmd "$out"/
+          node -e "const m=require('./dsh-desktop-next/package.json');const d=m.dependencies;require('fs').writeFileSync(process.argv[1], JSON.stringify({version: m.version, plugins: m.dsh.portableBundles.map(n=>({name:n, version:d[n]??'latest'}))}, null, 2)+'\\n')" "$out/plugins.json"
+          cat "$out/plugins.json"
           {
             echo "# 离线插件包 $version"
             echo
@@ -223,6 +225,10 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: dsh-desktop-next/portable
+          persist-credentials: false
       - name: Fetch the verified artifacts
         env:
           GH_TOKEN: ${{ github.token }}
@@ -232,7 +238,10 @@ jobs:
           set -euo pipefail
           mkdir -p out
           find dist -type f \( -name '*.zip' -o -name '*.tar.gz' \) -exec cp {} out/ \;
-          cd out && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt && du -sh .
+          # The verifier ships next to the checksums so a download can be checked without the repo.
+          cp dsh-desktop-next/portable/verify-download.sh dsh-desktop-next/portable/verify-download.cmd \
+             dsh-desktop-next/portable/verify-download.ps1 out/
+          cd out && sha256sum *.zip *.tar.gz > SHA256SUMS.txt && cat SHA256SUMS.txt && du -sh .
       - name: Create the release
         env:
           GH_TOKEN: ${{ github.token }}
