@@ -17,9 +17,9 @@ import { PROFILE_TEMPLATES } from './upstream-family.ts'
 
 export const NEXT_PACKAGE = fileURLToPath(new URL('../package.json', import.meta.url))
 /**
- * Bundles every new Next profile starts with, read from `portable-bundles.json` so adding a
- * plugin is a data edit rather than a code change. Each listed package must also be a
- * dependency of this package, or the profile cannot resolve it.
+ * Bundles every new Next profile starts with, read from this package's manifest so a
+ * distribution can preinstall plugins by editing data rather than code. Each listed package
+ * must also be a dependency, or a packaged profile cannot resolve it. Empty by default.
  */
 export const PREINSTALLED_BUNDLES: readonly string[] = readPortableBundles()
 function readPortableBundles(): readonly string[] {
@@ -27,8 +27,10 @@ function readPortableBundles(): readonly string[] {
   // always inside app.asar (a sibling JSON file is not, which broke the packaged boot once).
   const manifest = JSON.parse(readFileSync(NEXT_PACKAGE, 'utf8')) as { dsh?: { portableBundles?: unknown } }
   const bundles = manifest.dsh?.portableBundles
-  if (!Array.isArray(bundles) || bundles.length === 0 || !bundles.every(item => typeof item === 'string' && item.length > 0)) {
-    throw new Error('portable-bundles.json must list at least one package name')
+  // A distribution may preinstall nothing; a malformed list is still an error.
+  if (bundles === undefined) return []
+  if (!Array.isArray(bundles) || !bundles.every(item => typeof item === 'string' && item.length > 0)) {
+    throw new Error('dsh.portableBundles must be an array of package names')
   }
   return bundles
 }
