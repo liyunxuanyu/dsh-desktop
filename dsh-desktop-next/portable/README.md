@@ -41,11 +41,13 @@ home/                     你的数据（首次启动后出现）
 预装插件已随包，若要再装别的：
 
 ```sh
-./install-plugins.sh --list                 # 先看离线包清单
+./install-plugins.sh --list                 # 先看清单，不动 Profile
 ./install-plugins.sh                        # 装进当前 Profile
 ```
 
-插件包目录默认是 `./plugins-offline`（从 Release 的 `*-offline-plugins.tar.gz` 解压得到）。
+脚本按 `显式路径 > ./plugins-offline/ > 包内 registry/` 的顺序找插件来源，
+所以**不下载那个独立的离线包也能装**——直接用包内 `registry/`。
+要装清单以外的插件，才需要 Release 里的 `*-offline-plugins.tar.gz`。
 
 ## 换电脑 / 交接
 
