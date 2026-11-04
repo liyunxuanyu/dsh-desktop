@@ -224,7 +224,9 @@
     "@deepseek-ai/dsh-working-directory": "0.2.1-rc.5",
     "@deepseek-ai/dsh-workspace": "0.2.1-rc.5",
     "@deepseek-ai/schemastery": "^3.18.5",
+    "@liustack/modsearch": "5.10.11",
     "dsh-community-market": "0.1.0-dev.0",
+    "dsh-ops": "0.4.4",
     "dshmarket": "1.71.1",
     "koffi": "3.1.1",
     "mdast-util-from-markdown": "^2.0.3",
@@ -492,7 +494,9 @@
       "**/node_modules/pnpm/**/*",
       ".desktop-build/payload/scripts/node-bin/**/*",
       ".desktop-build/payload/assets/**/*",
-      ".desktop-build/payload/build/**/*"
+      ".desktop-build/payload/build/**/*",
+      "**/node_modules/dsh-ops/**/*",
+      "**/node_modules/@liustack/modsearch/**/*"
     ]
   }
 }

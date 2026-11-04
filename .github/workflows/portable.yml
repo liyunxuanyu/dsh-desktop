@@ -1,0 +1,160 @@
+name: Portable desktop packages
+
+# Builds and *runs* the "便捷包" (self-contained, unzip-and-run) desktop artifacts:
+#   Windows x64 → DSH-Desktop-<version>-x64-Portable.zip  (win-portable target)
+#   Linux x64   → DSH-NEXT-<version>-linux-x64-portable.tar.gz
+#
+# Windows must run on a native Windows host: package-win.ts rejects any other platform,
+# because electron-builder rewrites the executable's resources with rcedit.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - portable/next
+    tags:
+      - 'v*-next*'
+
+permissions:
+  contents: read
+
+env:
+  DSH_TELEMETRY_DISABLED: '1'
+
+jobs:
+  windows-portable:
+    runs-on: windows-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.23.2
+      - run: corepack enable
+      - name: Pin the Next upstream runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          commit=$(node -p "require('./upstream.json').channels.next.commit")
+          git -C deepseek-harness fetch --depth 1 origin "$commit"
+          git -C deepseek-harness checkout -q "$commit"
+      - run: yarn install --immutable
+      - name: Prepare the Electron binary
+        # .yarnrc.yml disables package scripts, so Electron's postinstall never ran.
+        shell: bash
+        run: node dsh-desktop-next/node_modules/electron/install.js
+      - name: Build the shared market and the Next bundles
+        shell: bash
+        run: |
+          yarn workspace dsh-community-market build
+          yarn workspace dsh-desktop-next build
+      - name: Package the portable archive
+        shell: bash
+        env:
+          DSH_WINDOWS_PACKAGE_COMPRESSION: store
+        run: yarn workspace dsh-desktop-next dist:win-portable
+      - name: Unpack the artifact and add the portable shell
+        shell: pwsh
+        run: |
+          $zip = Get-ChildItem dsh-desktop-next/dist/*.zip | Select-Object -First 1
+          $pkg = Join-Path $env:RUNNER_TEMP 'dsh-next-portable'
+          Expand-Archive -Path $zip.FullName -DestinationPath $pkg
+          Copy-Item dsh-desktop-next/portable/* $pkg -Recurse -Force
+          "DSH_PKG=$pkg" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Assert the preinstalled plugins travel with the package
+        shell: pwsh
+        run: |
+          $pkg = $env:DSH_PKG
+          foreach ($name in @('dsh-ops', '@liustack/modsearch')) {
+            $manifest = Join-Path $pkg "resources/app.asar.unpacked/node_modules/$name/package.json"
+            if (-not (Test-Path $manifest)) { throw "preinstalled plugin missing from the payload: $name" }
+            Write-Host "preinstalled: $name"
+          }
+          $runtime = Join-Path $pkg 'resources/runtime/x64/primary-runtime/runtime.json'
+          if (-not (Test-Path $runtime)) { throw 'bundled interpreter payload missing' }
+          Get-Content $runtime | ConvertFrom-Json | Format-List node, pnpm, python
+      - name: Check the portable data root stays inside the package
+        shell: pwsh
+        run: |
+          $pkg = $env:DSH_PKG
+          $exe = (Get-ChildItem $pkg -Filter *.exe | Where-Object { $_.Name -notmatch 'chrome|crash|cff' } | Select-Object -First 1).FullName
+          $process = Start-Process -FilePath $exe -PassThru
+          Start-Sleep -Seconds 60
+          try {
+            if (-not (Test-Path (Join-Path $pkg 'home/data'))) { throw 'portable.json was ignored: the package wrote no home/data' }
+            if (Test-Path (Join-Path $env:APPDATA 'DSH NEXT/home')) { throw 'the package wrote outside itself (APPDATA/DSH NEXT/home)' }
+            Get-ChildItem (Join-Path $pkg 'home/data') | Select-Object -First 10 | ForEach-Object { $_.Name }
+          } finally {
+            if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force }
+          }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dsh-next-portable-win-x64
+          path: dsh-desktop-next/dist/*.zip
+          if-no-files-found: error
+
+  linux-portable:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.23.2
+      - run: corepack enable
+      - name: Pin the Next upstream runtime
+        run: |
+          set -euo pipefail
+          commit=$(node -p "require('./upstream.json').channels.next.commit")
+          git -C deepseek-harness fetch --depth 1 origin "$commit"
+          git -C deepseek-harness checkout -q "$commit"
+      - run: yarn install --immutable
+      - name: Prepare the Electron binary
+        # .yarnrc.yml disables package scripts, so Electron's postinstall never ran.
+        shell: bash
+        run: node dsh-desktop-next/node_modules/electron/install.js
+      - name: Build the shared market and the Next bundles
+        run: |
+          yarn workspace dsh-community-market build
+          yarn workspace dsh-desktop-next build
+      - name: Package the unpacked application
+        env:
+          DSH_PACKAGE_CHECK_ALREADY_RAN: '1'
+        run: yarn workspace dsh-desktop-next package:dir
+      - name: Add the portable shell and the offline registry
+        run: |
+          set -euo pipefail
+          pkg=dsh-desktop-next/dist/linux-unpacked
+          cp -a dsh-desktop-next/portable/. "$pkg"/
+          mkdir -p "$pkg/registry/store" "$pkg/registry/cache" "$pkg/home"
+          node_bin="$pkg/resources/runtime/x64/primary-runtime/dependencies/node/bin/node"
+          pnpm_mjs="$pkg/resources/app.asar.unpacked/node_modules/pnpm/bin/pnpm.mjs"
+          "$node_bin" "$pnpm_mjs" store add --store-dir "$pkg/registry/store" \
+            dsh-ops@0.4.4 @liustack/modsearch@5.10.11 commander@15.0.0 undici@7.30.0
+          npm pack --silent --pack-destination "$pkg/registry" dsh-ops@0.4.4 @liustack/modsearch@5.10.11
+      - name: Launch the real window under Xvfb and check the portable data root
+        run: |
+          set -euo pipefail
+          pkg=dsh-desktop-next/dist/linux-unpacked
+          xvfb-run -a "$pkg/dsh-desktop-next" --no-sandbox --disable-gpu > /tmp/app.log 2>&1 &
+          sleep 60
+          test -d "$pkg/home/data" || { echo 'portable.json ignored: no home/data'; cat /tmp/app.log; exit 1; }
+          test ! -d "$HOME/.dsh/profiles" || { echo 'wrote ~/.dsh despite portable marker'; exit 1; }
+          ls "$pkg/home/data"
+          pkill -f dsh-desktop-next || true
+      - name: Archive the application directory
+        run: |
+          set -euo pipefail
+          version=$(node -p "require('./dsh-desktop-next/package.json').version")
+          tar -czf "DSH-NEXT-${version}-linux-x64-portable.tar.gz" -C dsh-desktop-next/dist linux-unpacked
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dsh-next-portable-linux-x64
+          path: DSH-NEXT-*-linux-x64-portable.tar.gz
+          if-no-files-found: error

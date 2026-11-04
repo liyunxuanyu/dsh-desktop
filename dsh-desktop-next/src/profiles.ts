@@ -16,7 +16,12 @@ import { insideArchive, unpackedPath } from './asar-archive-policy.ts'
 import { PROFILE_TEMPLATES } from './upstream-family.ts'
 
 export const NEXT_PACKAGE = fileURLToPath(new URL('../package.json', import.meta.url))
-export const WEB_BUNDLES = [...PROFILE_TEMPLATES.web!.bundles]
+/**
+ * Bundles every new Next profile starts with. The last two ship inside the package so the
+ * plugins work offline: the native file/search tools and the web search client.
+ */
+export const PREINSTALLED_BUNDLES = ['dsh-ops', '@liustack/modsearch'] as const
+export const WEB_BUNDLES = [...PROFILE_TEMPLATES.web!.bundles, ...PREINSTALLED_BUNDLES]
 const NEXT_BUNDLE_PATCH = fileURLToPath(new URL('../cordis.patch.yml', import.meta.url))
 export const AA_PACKAGE = '@agents-anywhere/dsh-bridge-next'
 export const COMMUNITY_MARKET_PACKAGE = 'dsh-community-market'

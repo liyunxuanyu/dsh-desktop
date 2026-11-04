@@ -25,6 +25,18 @@ export interface DataDirectoryLocation {
 
 export function defaultDataDirectory(userHome = homedir()): string { return join(userHome, '.dsh') }
 
+/** Marker file next to the executable that makes an unpacked package own every mutable byte it writes. */
+export const PORTABLE_MARKER = 'portable.json'
+
+/** One root for a portable package: data, the location record and Electron storage all sit below it. */
+export function portableRoot(program: string): string { return join(program, 'home') }
+
+/** Data directory of a portable package; deleting it resets the package without touching the installation. */
+export function portableDataDirectory(program: string): string { return join(portableRoot(program), 'data') }
+
+/** Location record of a portable package, kept beside the data it points at. */
+export function portableLocationRoot(program: string): string { return join(portableRoot(program), '.location') }
+
 export function dataDirectoryLocationRoot(packaged: boolean, appData: () => string, packageRoot: string): string {
   return packaged ? join(appData(), 'DSH NEXT', 'home') : join(packageRoot, '.desktop-next', 'home')
 }
