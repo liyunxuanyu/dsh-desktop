@@ -136,7 +136,7 @@ jobs:
           pnpm_mjs="$pkg/resources/app.asar.unpacked/node_modules/pnpm/bin/pnpm.mjs"
           # The preinstalled bundle list is data, not code: portable-bundles.json plus the versions
           # in package.json decide what the offline store and the registry carry.
-          specs=$(node -e "const b=require('./dsh-desktop-next/portable-bundles.json').bundles;const d=require('./dsh-desktop-next/package.json').dependencies;console.log(b.map(n=>n+'@'+(d[n]??'latest')).join(' '))")
+          specs=$(node -e "const m=require('./dsh-desktop-next/package.json');const d=m.dependencies;console.log(m.dsh.portableBundles.map(n=>n+'@'+(d[n]??'latest')).join(' '))")
           echo "preinstalled plugins: $specs"
           # `pnpm store add` stores only the named packages, not their dependency closure, so an
           # offline install would miss commander/undici. A scratch `pnpm add` resolves the closure

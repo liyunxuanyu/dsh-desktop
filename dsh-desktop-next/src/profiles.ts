@@ -23,10 +23,10 @@ export const NEXT_PACKAGE = fileURLToPath(new URL('../package.json', import.meta
  */
 export const PREINSTALLED_BUNDLES: readonly string[] = readPortableBundles()
 function readPortableBundles(): readonly string[] {
-  const manifest = JSON.parse(readFileSync(fileURLToPath(new URL('../portable-bundles.json', import.meta.url)), 'utf8')) as {
-    bundles?: unknown
-  }
-  const bundles = manifest.bundles
+  // The list lives in this package's manifest: a data edit adds a plugin, and package.json is
+  // always inside app.asar (a sibling JSON file is not, which broke the packaged boot once).
+  const manifest = JSON.parse(readFileSync(NEXT_PACKAGE, 'utf8')) as { dsh?: { portableBundles?: unknown } }
+  const bundles = manifest.dsh?.portableBundles
   if (!Array.isArray(bundles) || bundles.length === 0 || !bundles.every(item => typeof item === 'string' && item.length > 0)) {
     throw new Error('portable-bundles.json must list at least one package name')
   }

@@ -323,6 +323,10 @@
         "dsh-community-market",
         "dshmarket"
       ]
+    ],
+    "portableBundles": [
+      "dsh-ops",
+      "@liustack/modsearch"
     ]
   },
   "build": {
@@ -498,8 +502,5 @@
       "**/node_modules/dsh-ops/**/*",
       "**/node_modules/@liustack/modsearch/**/*"
     ]
-  },
-  "files": [
-    "portable-bundles.json"
-  ]
+  }
 }
