@@ -190,3 +190,11 @@ Windows 用 `verify-download.cmd`（内部调用 `Get-FileHash`）。脚本对�
 用真实 Release 资产验证过：下载 `v2.0.21-next-portable.5` 的
 `DSH-NEXT-2.0.21-next-offline-plugins.tar.gz`（18 MB）后，
 `verify-download.sh` 报 `通过 …` 并与发布页 SHA256 一致。
+
+## 包内使用说明与 Windows 离线仓库（tag `v2.0.21-next-portable.7`）
+
+- 包根目录新增 `README.md`（随 `portable/` 一起打进 Linux 与 Windows 产物）：
+  首次启动、目录职责、预装清单、离线装插件、清空带走、排错、校验下载。
+- Windows 任务补上 **registry seeding**：此前只有 Linux 包带 `registry/store`，
+  Windows 包的 `.npmrc` 指向一个不存在的目录，包内离线装插件实际无效。
+  现在两边都用包内 node + pnpm 走真实依赖解析填充 store，并断言 `store/v11` 存在。

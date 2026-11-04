@@ -63,6 +63,25 @@ jobs:
           Expand-Archive -Path $zip.FullName -DestinationPath $pkg
           Copy-Item dsh-desktop-next/portable/* $pkg -Recurse -Force
           "DSH_PKG=$pkg" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Seed the offline registry
+        shell: pwsh
+        run: |
+          $pkg = $env:DSH_PKG
+          $node = Join-Path $pkg 'resources/runtime/x64/primary-runtime/dependencies/node/node.exe'
+          $pnpm = Join-Path $pkg 'resources/app.asar.unpacked/node_modules/pnpm/bin/pnpm.mjs'
+          New-Item -ItemType Directory -Force -Path (Join-Path $pkg 'registry/store'), (Join-Path $pkg 'registry/cache'), (Join-Path $pkg 'home') | Out-Null
+          $specs = @((node -e "const m=require('./dsh-desktop-next/package.json');const d=m.dependencies;console.log(m.dsh.portableBundles.map(n=>n+'@'+(d[n]??'latest')).join(' '))").Split(' '))
+          Write-Host "preinstalled plugins: $($specs -join ', ')"
+          $scratch = Join-Path $env:RUNNER_TEMP 'store-seed'
+          New-Item -ItemType Directory -Force -Path $scratch | Out-Null
+          '{"name":"store-seed","private":true}' | Set-Content (Join-Path $scratch 'package.json')
+          Push-Location $scratch
+          # Same trap as on Linux: the store must be seeded through a real resolution, not store add.
+          & $node $pnpm add --store-dir (Join-Path $pkg 'registry/store') @specs
+          Pop-Location
+          if (-not (Test-Path (Join-Path $pkg 'registry/store/v11'))) { throw 'registry store was not populated' }
+          & npm pack --silent --pack-destination (Join-Path $pkg 'registry') @specs
+          Get-ChildItem (Join-Path $pkg 'registry')
       - name: Assert the preinstalled plugins travel with the package
         shell: pwsh
         run: |
