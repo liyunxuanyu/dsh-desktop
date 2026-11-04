@@ -321,7 +321,8 @@
         "dsh-community-market",
         "dshmarket"
       ]
-    ]
+    ],
+    "portableBundles": []
   },
   "build": {
     "appId": "ai.deepseek.dsh.desktop.next",
@@ -492,7 +493,9 @@
       "**/node_modules/pnpm/**/*",
       ".desktop-build/payload/scripts/node-bin/**/*",
       ".desktop-build/payload/assets/**/*",
-      ".desktop-build/payload/build/**/*"
+      ".desktop-build/payload/build/**/*",
+      "**/node_modules/dsh-ops/**/*",
+      "**/node_modules/@liustack/modsearch/**/*"
     ]
   }
 }

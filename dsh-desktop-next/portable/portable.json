@@ -1,0 +1,4 @@
+{
+  "portable": true,
+  "note": "Marker read by DSH NEXT: all mutable state stays below ./home in this package."
+}

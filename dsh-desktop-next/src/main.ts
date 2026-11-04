@@ -2,7 +2,7 @@
 import { installDesktopShortcuts } from './keyboard.ts'
 import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { readFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs'
 import { access, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { freemem, totalmem } from 'node:os'
@@ -41,7 +41,7 @@ import { DE_ELEVATED_ARGUMENT, ONBOARDING_ARGUMENT, RECOVERY_ARGUMENT, SAFE_ARGU
 import { DESKTOP_RUNTIME_FILE, readInstalledPackageVersion, verifyPackagedRuntimeIdentity } from './runtime-tree.ts'
 import { unpackedPath } from './asar-archive-policy.ts'
 import { createNativePermissions, installMediaPermissions } from './electron-permissions.ts'
-import { DATA_DIRECTORY_VARIABLE, dataDirectoryChange, dataDirectoryLocationFile, dataDirectoryLocationRoot, readDataDirectory, rememberDataDirectory, sameDirectory, validateDataDirectory } from './data-directory.ts'
+import { DATA_DIRECTORY_VARIABLE, PORTABLE_MARKER, dataDirectoryChange, dataDirectoryLocationFile, dataDirectoryLocationRoot, portableDataDirectory, portableLocationRoot, portableRoot, readDataDirectory, rememberDataDirectory, sameDirectory, validateDataDirectory } from './data-directory.ts'
 import { assertBackupLocation, backupDirectoryName, copyDataDirectory } from './data-backup.ts'
 import { maskSecrets } from './mask-secrets.ts'
 import { DesktopBrowserGuests } from './browser-guests.ts'
@@ -78,9 +78,11 @@ const root = dirname(NEXT_PACKAGE)
 // Workspace and data directory choices stay out of the installation (#1564).
 const program = programDirectory(process.platform, process.execPath)
 // Read once: an in-app relaunch inherits this process's environment, not later user variables.
-const environmentHome = process.env[DATA_DIRECTORY_VARIABLE] || undefined
+const portable = existsSync(join(program, PORTABLE_MARKER))
+if (portable) mkdirSync(portableRoot(program), { recursive: true, mode: 0o700 })
+const environmentHome = portable ? portableDataDirectory(program) : process.env[DATA_DIRECTORY_VARIABLE] || undefined
 // The in-app choice keeps its former Next-owned anchor, whatever the variable says.
-const locationRoot = dataDirectoryLocationRoot(app.isPackaged, () => app.getPath('appData'), root)
+const locationRoot = portable ? portableLocationRoot(program) : dataDirectoryLocationRoot(app.isPackaged, () => app.getPath('appData'), root)
 const locationFile = dataDirectoryLocationFile(locationRoot)
 const dataLocation = readDataDirectory(locationRoot, environmentHome)
 const home = dataLocation.home

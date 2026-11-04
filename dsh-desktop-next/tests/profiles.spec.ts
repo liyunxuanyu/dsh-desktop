@@ -641,3 +641,11 @@ it('leaves no Profile link into an archived installation and points the AA bridg
   expect(lstatSync(link).isSymbolicLink()).toBe(true)
   expect(JSON.parse(readFileSync(join(dir, 'desktop-next.cordis.patch.json'), 'utf8'))).toEqual([{ id: 'agents-anywhere-bridge-next', config: { dshHome: manager.home } }])
 })
+
+it('reads the preinstalled bundle list from the packaged manifest', () => {
+  const manifest = JSON.parse(readFileSync(NEXT_PACKAGE, 'utf8')) as { dsh: { portableBundles: string[] }, dependencies: Record<string, string> }
+  // The list is data: every entry must also be a dependency, or the packaged profile cannot resolve it.
+  expect(Array.isArray(manifest.dsh.portableBundles)).toBe(true)
+  for (const name of manifest.dsh.portableBundles) expect(manifest.dependencies[name]).toBeTruthy()
+  for (const name of manifest.dsh.portableBundles) expect(WEB_BUNDLES).toContain(name)
+})

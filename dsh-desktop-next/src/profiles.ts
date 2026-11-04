@@ -16,7 +16,25 @@ import { insideArchive, unpackedPath } from './asar-archive-policy.ts'
 import { PROFILE_TEMPLATES } from './upstream-family.ts'
 
 export const NEXT_PACKAGE = fileURLToPath(new URL('../package.json', import.meta.url))
-export const WEB_BUNDLES = [...PROFILE_TEMPLATES.web!.bundles]
+/**
+ * Bundles every new Next profile starts with, read from this package's manifest so a
+ * distribution can preinstall plugins by editing data rather than code. Each listed package
+ * must also be a dependency, or a packaged profile cannot resolve it. Empty by default.
+ */
+export const PREINSTALLED_BUNDLES: readonly string[] = readPortableBundles()
+function readPortableBundles(): readonly string[] {
+  // The list lives in this package's manifest: a data edit adds a plugin, and package.json is
+  // always inside app.asar (a sibling JSON file is not, which broke the packaged boot once).
+  const manifest = JSON.parse(readFileSync(NEXT_PACKAGE, 'utf8')) as { dsh?: { portableBundles?: unknown } }
+  const bundles = manifest.dsh?.portableBundles
+  // A distribution may preinstall nothing; a malformed list is still an error.
+  if (bundles === undefined) return []
+  if (!Array.isArray(bundles) || !bundles.every(item => typeof item === 'string' && item.length > 0)) {
+    throw new Error('dsh.portableBundles must be an array of package names')
+  }
+  return bundles
+}
+export const WEB_BUNDLES = [...PROFILE_TEMPLATES.web!.bundles, ...PREINSTALLED_BUNDLES]
 const NEXT_BUNDLE_PATCH = fileURLToPath(new URL('../cordis.patch.yml', import.meta.url))
 export const AA_PACKAGE = '@agents-anywhere/dsh-bridge-next'
 export const COMMUNITY_MARKET_PACKAGE = 'dsh-community-market'

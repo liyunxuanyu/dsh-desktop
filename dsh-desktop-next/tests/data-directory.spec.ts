@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
-import { dataDirectoryChange, dataDirectoryLocationFile, dataDirectoryLocationRoot, defaultDataDirectory, readDataDirectory, rememberDataDirectory, sameDirectory, validateDataDirectory } from '../src/data-directory.ts'
+import { dataDirectoryChange, dataDirectoryLocationFile, dataDirectoryLocationRoot, defaultDataDirectory, PORTABLE_MARKER, portableDataDirectory, portableLocationRoot, portableRoot, readDataDirectory, rememberDataDirectory, sameDirectory, validateDataDirectory } from '../src/data-directory.ts'
 import { NextProfiles } from '../src/profiles.ts'
 
 const homes: string[] = []
@@ -84,4 +84,18 @@ it('accepts empty or Next directories, rejecting unrelated and nested data direc
   new NextProfiles(target).ensure('desktop')
   expect(validateDataDirectory(target, original, original)).toBe(target)
   expect(validateDataDirectory(original, target, original)).toBe(original)
+})
+
+it('gives a portable package one root: data, location record and Electron storage stay inside it', () => {
+  const program = home()
+  // Nothing is created until the marker exists; the helpers are pure path derivations.
+  expect(portableRoot(program)).toBe(join(program, 'home'))
+  expect(portableDataDirectory(program)).toBe(join(program, 'home', 'data'))
+  expect(portableLocationRoot(program)).toBe(join(program, 'home', '.location'))
+  // The Electron data directory is derived from the data directory, so it lands inside the package too.
+  expect(join(portableDataDirectory(program), 'electron-user-data').startsWith(portableRoot(program))).toBe(true)
+})
+
+it('names the marker file the launcher writes next to the executable', () => {
+  expect(PORTABLE_MARKER).toBe('portable.json')
 })
