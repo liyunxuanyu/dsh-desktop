@@ -31,6 +31,22 @@
 
 DSH Desktop 将 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的本地 Web UI、Host 服务和插件系统集成到原生桌面应用中。项目固定并原样运行特定上游版本；DSH Desktop 提供窗口、托盘、终端、更新和工作配置，并通过 DeepSeek Harness 提供的插件机制与上游能力组合。
 
+<a id="portable"></a>
+
+## 📦 便携包（解压即用，数据在包内）
+
+本仓库在 [Releases](https://github.com/liyunxuanyu/dsh-desktop/releases/latest) 另外发布**免安装**的便携版：
+解压后双击即可运行，自带 Node / Python / pnpm 与预装插件，会话与凭据都留在包内，
+清空 `home/` 就能把包交给下一个人。
+
+| 平台 | 下载 |
+| --- | --- |
+| Windows x64 | `DSH-NEXT-<版本>-x64-Portable.zip` |
+| Linux x64 | `DSH-NEXT-<版本>-linux-x64-portable.tar.gz` |
+
+**第一次用请先看 [便捷包使用指南](docs/portable-guide.md)**：下载、校验、解压、配置模型、
+预装插件、离线装插件、清空带走、排错，都有逐步说明。
+
 <a id="run"></a>
 
 ## 下载与安装

@@ -1,91 +1,144 @@
-# DSH NEXT 便捷包（桌面版）
+# DSH NEXT 便捷包
 
-解压即用：不需要安装 Node、Python 或 pnpm，会话与插件也都在这个目录里。
-**整个文件夹可以拷到 U 盘、换台电脑继续用。**
+**解压就能用**：不用装 Node、Python 或 pnpm，插件已预装，数据都留在这个文件夹里。
+把这个文件夹拷到 U 盘、换台电脑，解开就能继续用。
 
-## 第一次用
+---
 
-| 系统 | 双击 / 执行 |
+## 一、三十秒开始
+
+**Windows**：双击 **`DSH-NEXT.cmd`**，等窗口出现。
+若弹出 SmartScreen 蓝框，点「更多信息 → 仍要运行」。
+
+**Linux**：在终端执行 **`./DSH-NEXT.sh`**（如果提示没有执行权限，先 `chmod +x DSH-NEXT.sh`）。
+
+窗口出现后，第一件事是**配置模型**（见第三节），否则无法对话。
+
+## 二、这个文件夹里是什么
+
+```
+DSH-NEXT.cmd / DSH-NEXT.sh          启动器（推荐用它启动）
+DSH-NEXT-reset.cmd / .sh            清空用户数据（换人/换机前用）
+install-plugins.cmd / .sh           从离线仓库装插件
+verify-download.cmd / .ps1 / .sh    校验你下载的压缩包是否完整
+portable.json                       便携标记：程序据此把数据写进 ./home
+.npmrc                              包内 npm 偏好设置
+registry/                           离线插件仓库（插件包 + pnpm store，约 25 MB）
+resources/                          程序本体与内置运行时（Node / pnpm / Python）
+home/                               你的数据（第一次启动后自动出现）
+```
+
+**不要删除** `portable.json`、`resources/`、`registry/`：
+删了会退回「把数据写到用户目录」的模式，或者失去离线装插件的能力。
+
+## 三、配置模型（必须）
+
+1. 打开应用内的**设置**；
+2. 找到模型 / 服务商设置，填入 **Base URL**、**模型名**、**API Key**；
+3. 保存，回到对话界面即可开始。
+
+凭据只保存在本目录 `home/data/` 下，不会上传到别处——但**分享这个包之前请先执行
+`DSH-NEXT-reset`**，否则你的 Key 会跟着包一起被带走。
+
+## 四、已经装好的插件
+
+| 插件 | 能做什么 |
 | --- | --- |
-| Windows x64 | `DSH-NEXT.cmd` |
-| Linux x64 | `./DSH-NEXT.sh` |
+| `@deepseek-ai/dsh-base` | 核心工具：读写文件、执行命令、任务与子代理 |
+| `@deepseek-ai/dsh-web-app` | 应用界面本身 |
+| `dsh-ops` 0.4.4 | 原生文件检索与批处理（Rust 后端，搜索大仓库更快） |
+| `@liustack/modsearch` 5.10.11 | 网页搜索、网页正文读取、X（Twitter）搜索 |
 
-首次启动会在本目录生成 `home/`，之后所有数据（会话、凭据、浏览器缓存、日志）都留在里面。
+这些在每个新建的 Profile 里默认启用，不需要手动安装。
+包内运行时：Node 24.21.0、pnpm 11.28.5、Python 3.12.14——
+技能脚本、MCP 服务可以直接调用 `node` / `pnpm` / `python3`。
 
-## 目录里都是什么
+## 五、再装插件
 
-```
-DSH-NEXT.cmd / .sh        启动器（唯一入口）
-DSH-NEXT-reset.cmd / .sh  清空用户数据（保留程序与插件），换机前执行
-portable.json             便携标记：程序据此把数据写进 ./home
-.npmrc                    pnpm 指向包内的 registry/store
-registry/                 离线插件仓库（预装插件的包 + pnpm store）
-resources/                程序本体与内置运行时（Node / pnpm / Python）
-home/                     你的数据（首次启动后出现）
-```
+**界面里装**：设置 → 插件市场 / 插件管理，搜索安装。已指向包内离线仓库，
+预装插件的依赖无需联网。
 
-**不要删除** `portable.json`、`resources/`、`registry/`：删了会退回「写到用户目录」的模式，
-或者丢掉离线装插件的能力。
-
-## 已经预装什么
-
-- 核心工具集与 Web UI（`@deepseek-ai/dsh-base`、`dsh-web-app`）
-- `dsh-ops`：原生文件检索 / 批处理（Rust 后端）
-- `@liustack/modsearch`：网页搜索、读页、X 搜索
-
-首次启动后进「设置 → 模型」填自己的服务商与 API Key 即可开始。
-凭据保存在 `home/data/.credentials.yaml`。
-
-## 加插件（离线）
-
-预装插件已随包，若要再装别的：
+**用离线包装**（无网络时）：
 
 ```sh
-./install-plugins.sh --list                 # 先看清单，不动 Profile
-./install-plugins.sh                        # 装进当前 Profile
+./install-plugins.sh --list     # 只看清单，不改任何东西
+./install-plugins.sh            # 装进当前 Profile
 ```
 
-脚本按 `显式路径 > ./plugins-offline/ > 包内 registry/` 的顺序找插件来源，
-所以**不下载那个独立的离线包也能装**——直接用包内 `registry/`。
-要装清单以外的插件，才需要 Release 里的 `*-offline-plugins.tar.gz`。
+```bat
+install-plugins.cmd --list
+install-plugins.cmd
+```
 
-## 离线仓库怎么生效
+插件来源按 `显式路径 > ./plugins-offline/ > 包内 registry/` 查找。
+如果另外下载了 `*-offline-plugins.tar.gz`，解压出的 `plugins-offline/`
+放在本目录旁边就会被自动发现。**装完要重启应用。**
 
-包内 `registry/`（store + 元数据缓存）就是离线源。启动器和 `install-plugins` 会把
-**绝对路径**写进各 Profile 的 `pnpm-workspace.yaml`：
+### 离线仓库是怎么生效的
+
+启动器和 `install-plugins` 会把**绝对路径**写进各 Profile 的 `pnpm-workspace.yaml`：
 
 ```yaml
-storeDir: <包>/registry/store
-cacheDir: <包>/registry/cache
+storeDir: <本目录>/registry/store
+cacheDir: <本目录>/registry/cache
 preferOffline: true
 ```
 
-pnpm 11 只认这份配置（`.npmrc` 里的 storeDir/cacheDir 和 `NPM_CONFIG_*` 环境变量都不生效），
-所以界面里装插件也会命中包内仓库。该文件在**首次启动之后**由启动器写入，
-运行一次 `install-plugins.sh` 也会立即补齐。
+pnpm 11 只认这份配置（`.npmrc` 里的 `storeDir`/`cacheDir` 与 `NPM_CONFIG_*` 环境变量都不生效），
+所以界面里装插件也会命中包内仓库。该文件在**第一次启动之后**由启动器写入，
+跑一次 `install-plugins.sh` 也会立即补齐。
 
-## 换电脑 / 交接
+## 六、数据、清空、带走
 
-```sh
-./DSH-NEXT-reset.sh --yes     # 清掉 home/（会话、凭据、缓存），程序与运行时不动
+```
+home/
+└── data/
+    ├── profiles/            会话与每个 Profile 的插件配置
+    ├── electron-user-data/  界面缓存、窗口状态
+    └── logs/                运行日志
 ```
 
-之后压缩整个目录带走即可。想连插件配置一起保留，就不要执行 reset，直接拷走整个文件夹
-（注意 `home/` 里有你的 API Key）。
+交给别人 / 换电脑前：
 
-## 出问题先看这里
+```sh
+./DSH-NEXT-reset.sh --yes      # Linux
+```
 
-- **端口被占 / 打不开界面**：退出后用命令行启动 `DSH-NEXT.cmd`（Windows）或 `./DSH-NEXT.sh`（Linux），
-  窗口会打印实际地址与报错。
-- **插件没生效**：插件装完需要重启便捷包。
-- **想恢复出厂**：执行 reset 脚本，或直接删掉 `home/`。
-- **Windows 首次运行被 SmartScreen 拦**：未签名程序的常规提示，选「更多信息 → 仍要运行」。
+```bat
+DSH-NEXT-reset.cmd --yes       :: Windows
+```
 
-## 校验下载完整性
+只删 `home/`（会话、凭据、缓存、日志），程序、运行时、插件都保留，
+重新启动就是一台全新机器。
 
-Release 里附带 `SHA256SUMS.txt` 与校验脚本：
+想连配置一起带走就别 reset，直接压缩整个文件夹——记得里面有你的 API Key。
+升级版本时，把旧包的 `home/` 拷到新包的同位置即可保留数据。
+
+## 七、出问题看这里
+
+| 现象 | 怎么办 |
+| --- | --- |
+| 双击没反应 / 窗口一闪而过 | 从命令行启动（Windows 在地址栏输入 `cmd` 回车后执行 `DSH-NEXT.cmd`；Linux 直接 `./DSH-NEXT.sh`），会打印真实报错 |
+| 提示权限不足 / 无法写入 | 包被放在只读或用管理员权限才能写的目录，换到用户目录 |
+| 装完插件没生效 | 退出并重新启动 |
+| 想恢复出厂 | `DSH-NEXT-reset.*`，或直接删掉 `home/` |
+| Windows 报 SmartScreen | 「更多信息 → 仍要运行」 |
+| 下载后校验不通过 | 重新下载，多半是网络中断导致文件损坏 |
+
+日志在 `home/data/logs/`，反馈问题时一并附上最有用。
+完整版说明（含下载、校验、常见问题）见仓库的 `docs/portable-guide.md`。
+
+## 八、校验下载完整性
+
+发布页附 `SHA256SUMS.txt` 与校验脚本，放在同一目录执行：
 
 ```sh
 ./verify-download.sh          # Linux / macOS
-verify-download.cmd           # Windows
 ```
+
+```bat
+verify-download.cmd           :: Windows
+```
+
+看到 `通过 <文件名>` 即完整；`不匹配` 请重新下载。只下载了其中一个包也没关系，
+脚本会跳过没下载的文件。

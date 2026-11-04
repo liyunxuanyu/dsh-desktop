@@ -162,6 +162,7 @@ jobs:
           pkg="$(pwd)/dsh-desktop-next/dist/linux-unpacked"
           cp -a dsh-desktop-next/portable/. "$pkg"/
           mkdir -p "$pkg/registry/store" "$pkg/registry/cache" "$pkg/home"
+          test -f "$pkg/registry/README.md" || { echo 'registry README missing from the package'; exit 1; }
           node_bin="$pkg/resources/runtime/x64/primary-runtime/dependencies/node/bin/node"
           pnpm_mjs="$pkg/resources/app.asar.unpacked/node_modules/pnpm/bin/pnpm.mjs"
           # The preinstalled bundle list is data, not code: dsh.portableBundles plus the versions
