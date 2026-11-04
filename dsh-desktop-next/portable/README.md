@@ -49,6 +49,21 @@ home/                     你的数据（首次启动后出现）
 所以**不下载那个独立的离线包也能装**——直接用包内 `registry/`。
 要装清单以外的插件，才需要 Release 里的 `*-offline-plugins.tar.gz`。
 
+## 离线仓库怎么生效
+
+包内 `registry/`（store + 元数据缓存）就是离线源。启动器和 `install-plugins` 会把
+**绝对路径**写进各 Profile 的 `pnpm-workspace.yaml`：
+
+```yaml
+storeDir: <包>/registry/store
+cacheDir: <包>/registry/cache
+preferOffline: true
+```
+
+pnpm 11 只认这份配置（`.npmrc` 里的 storeDir/cacheDir 和 `NPM_CONFIG_*` 环境变量都不生效），
+所以界面里装插件也会命中包内仓库。该文件在**首次启动之后**由启动器写入，
+运行一次 `install-plugins.sh` 也会立即补齐。
+
 ## 换电脑 / 交接
 
 ```sh
