@@ -375,3 +375,33 @@ preferOffline: true
 
 这样**界面里装插件**也会命中包内 store，而不是退回 `~/.local/share/pnpm/store`。
 验证：干净 `HOME` 下 `install-plugins.sh` 装齐两个插件，`deps: ['@liustack/modsearch', 'dsh-ops']`。
+
+## 最终状态（tag `v2.0.21-next-portable.14`）
+
+https://github.com/liyunxuanyu/dsh-desktop/releases/tag/v2.0.21-next-portable.14
+
+| 资产 | 大小 | SHA256 |
+| --- | --- | --- |
+| `DSH-NEXT-2.0.21-next-x64-Portable.zip` | 582.34 MB | `1fcfad9c…5527a3` |
+| `DSH-NEXT-2.0.21-next-linux-x64-portable.tar.gz` | 445.59 MB | `bac21d20…1e1bf1` |
+| `DSH-NEXT-2.0.21-next-offline-plugins.tar.gz` | 18.30 MB | `35d519aa…1f4d3f1` |
+
+在**已发布的 .14 Linux 包**上做的最终验证（`HOME` 指向全新空目录）：
+
+```
+$ sh ./install-plugins.sh
+Done in 2.4s using pnpm v11.28.5
+完成。重新启动便捷包使插件生效。
+deps: ['@liustack/modsearch', 'dsh-ops']
+
+$ cat home/data/profiles/desktop/pnpm-workspace.yaml
+storeDir: /tmp/v14/linux-unpacked/registry/store
+cacheDir: /tmp/v14/linux-unpacked/registry/cache
+preferOffline: true
+```
+
+即：包内 `registry/store`（25M）+ `registry/cache`（728K）齐全，安装脚本与启动器都会把
+绝对路径写进 Profile 的 `pnpm-workspace.yaml`，界面里装插件同样命中包内仓库。
+
+已知细节：`pnpm-workspace.yaml` 是按「已存在的 Profile」写入的，所以**首次启动**后才会有该文件；
+正常使用（第二次启动起）以及运行 `install-plugins.sh` 之后都会就位。
