@@ -291,11 +291,11 @@ jobs:
           test -n "$after" || { echo 'the refresh wrote no plugin list'; exit 1; }
           test -f "$pkg/registry/plugins.json" || { echo 'plugins.json disappeared'; exit 1; }
           # A refreshed library must still install offline from the store it just grew.
-          mkdir -p "$pkg/home/data/profiles/probe"
-          printf '{"name":"probe","private":true,"dsh":{"profile":{"bundles":[]}}}\n' > "$pkg/home/data/profiles/probe/package.json"
-          ( cd "$pkg/home/data/profiles/probe" && DSH_DESKTOP_NEXT_HOME="$pkg/home/data" \
-              sh "$pkg/install-plugins.sh" "$pkg/registry" )
-          node -e "const d=require('$pkg/home/data/profiles/probe/package.json'); if (!d.dependencies || Object.keys(d.dependencies).length === 0) throw new Error('the refreshed library no longer installs offline'); console.log('refreshed library installs offline:', Object.keys(d.dependencies).join(', '))"
+          mkdir -p "$pkg/home/data/profiles/desktop"
+          printf '{"name":"probe","private":true,"dsh":{"profile":{"bundles":[]}}}\n' > "$pkg/home/data/profiles/desktop/package.json"
+          DSH_NEXT_PACKAGE="$pkg" DSH_DESKTOP_NEXT_HOME="$pkg/home/data" \
+            sh "$pkg/install-plugins.sh" "$pkg/registry"
+          node -e "const d=require('$pkg/home/data/profiles/desktop/package.json'); if (!d.dependencies || Object.keys(d.dependencies).length === 0) throw new Error('the refreshed library no longer installs offline'); console.log('refreshed library installs offline:', Object.keys(d.dependencies).join(', '))"
           rm -rf "$pkg/home/data"
       - name: Archive the application directory
         run: |
