@@ -1,14 +1,19 @@
 @echo off
-rem DSH NEXT 桌面版便捷启动器（Windows x64）
+rem DSH NEXT portable launcher (Windows x64).
+rem Data, caches and plugins stay in this folder; run DSH-NEXT-reset.cmd to wipe user data.
+rem This file is ASCII-only on purpose: cmd.exe decodes batch files with the console
+rem code page, and a non-ASCII byte can swallow the start of the next line. The
+rem Chinese documentation lives in README.md.
 setlocal
 set "DIR=%~dp0"
 if "%DIR:~-1%"=="\" set "DIR=%DIR:~0,-1%"
 set "DSH_DESKTOP_NEXT_HOME=%DIR%\home\data"
 set "NPM_CONFIG_USERCONFIG=%DIR%\.npmrc"
 if not exist "%DSH_DESKTOP_NEXT_HOME%" mkdir "%DSH_DESKTOP_NEXT_HOME%"
-rem store、缓存、运行时都由程序自己从包目录解析（见 src/portable-environment.ts），
-rem 这里不写死路径：包改名、移动或放在带空格的目录里都不会失效。
-rem 启动器只把包内解释器提前放进 PATH，方便插件/技能/MCP 直接调用 node / python。
+rem The application derives every store, cache and runtime path from this folder
+rem (src/portable-environment.ts), so nothing is hard-coded here and a renamed or
+rem moved package keeps working. The launcher only puts the bundled interpreters
+rem first on PATH so plugins, skills and MCP servers resolve node / python.
 set "RT=%DIR%\resources\runtime\x64\primary-runtime\dependencies"
 if exist "%RT%\node\bin" set "PATH=%RT%\node\bin;%PATH%"
 if exist "%RT%\python" set "PATH=%RT%\python;%RT%\python\Scripts;%PATH%"

@@ -1,4 +1,4 @@
-# 校验从 Release 下载的压缩包是否完整（Windows 实现）。
+﻿# 校验从 Release 下载的压缩包是否完整（Windows 实现）。
 param(
   [string]$Sums = '',
   [string]$Target = ''
