@@ -284,3 +284,31 @@ six pages, artwork, back navigation, choices, skip, completion, inert cleanup, a
    离线插件包、校验脚本和具体插件清单。
 
 本地全量单测：110 个文件 / 978 通过 / 17 跳过。
+
+### 第十一版（tag `v2.0.21-next-portable.11`）— 最终版
+
+https://github.com/liyunxuanyu/dsh-desktop/releases/tag/v2.0.21-next-portable.11
+
+代码与产物一一对应（tag 指向最终提交 `2908bb7`），三个 job 全绿：
+
+```
+Next onboarding passed ... six pages, artwork, back navigation, choices, skip, completion, inert cleanup, and no repeat
+Verified the archive against the prepared Next payload: 20995 files (2288 unpacked) for linux x64
+offline install ok: @liustack/modsearch, dsh-ops
+```
+
+| 资产 | 大小 | SHA256 |
+| --- | --- | --- |
+| `DSH-NEXT-2.0.21-next-x64-Portable.zip` | 582.34 MB | `fe1da56d…5c2d0d` |
+| `DSH-NEXT-2.0.21-next-linux-x64-portable.tar.gz` | 445.36 MB | `4b9b9fde…4f1980` |
+| `DSH-NEXT-2.0.21-next-offline-plugins.tar.gz` | 18.08 MB | `f6ae844e…bf8b21` |
+
+上游贡献已备在分支 `upstream/portable-core`（从 `117e489` 起，13 个文件，只含便携核心），
+PR 说明草稿在 `/root/dsh-next-desktop/upstream/PR.md`，补丁同目录。
+
+### `master` 引用修复
+
+之前用 `git push HEAD:master` 推送，本地 `master` 引用没随之前移，停在 `35fd93d`，
+导致后续 `git checkout master` 拿到旧树（`package.json` 没有 `dsh.portableBundles`，
+单测 1 条失败、脚本报 `KeyError`）。用 `git reset --hard 4ac8d23` 修正引用后，
+同步「允许空清单」的重构，全量单测恢复 **110 文件 / 978 通过 / 17 跳过**。
