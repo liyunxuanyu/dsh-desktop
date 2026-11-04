@@ -256,3 +256,17 @@ six pages, artwork, back navigation, choices, skip, completion, inert cleanup, a
 `git push refs/tags/…` 两次分别返回 `Internal Server Error` 与 `fatal error in commit_refs`，
 改用 GitHub API `POST /git/refs` 创建 tag 立即可用（201）。分支 push 正常，仅 tag 受影响；
 以后打 tag 走 API 更省事。
+
+## 测试与第十版（tag `v2.0.21-next-portable.10`）
+
+便携模式此前只靠 CI 端到端验证，代码层没有单测。补了 3 条：
+
+- `portableRoot` / `portableDataDirectory` / `portableLocationRoot` 的路径推导，以及
+  Electron 数据目录一定落在 `portableRoot` 之下；
+- 标记文件名 `portable.json` 的常量；
+- `dsh.portableBundles` 的每一项都必须是 `dependencies` 里的真实依赖，
+  且都会进 `WEB_BUNDLES`——这条防的是「清单里写了但没装，打包后启动才炸」。
+
+全量桌面端单测：**110 个文件 / 978 通过 / 17 跳过**。
+
+发布：https://github.com/liyunxuanyu/dsh-desktop/releases/tag/v2.0.21-next-portable.10
