@@ -413,3 +413,41 @@ preferOffline: true
 使**包内文档、`PORTABLE.md` 与产物完全一致**；除文档外，代码与 `.14` 相同。
 
 （`.14` 之后不再需要清理：保留 `.14` 与 `.15` 中的最新者即可。）
+
+## 运行时如何随包提供（tag `v2.0.21-next-portable.17`）
+
+运行时都在 `resources/runtime/x64/primary-runtime/dependencies/`：
+
+| 组件 | 路径 | 版本 |
+| --- | --- | --- |
+| Node | `node/bin/node`（Windows `node/bin/node.exe`） | 24.21.0 |
+| pnpm | `pnpm/bin/pnpm.mjs` | 11.28.5 |
+| Python | `python/bin/python3`（Windows `python/python.exe`） | 3.12.14 |
+
+这之前存在一个**实际缺口**：启动器只设置 `DSH_DESKTOP_NEXT_HOME` 与离线仓库配置，
+**没有把运行时目录放进 PATH**。源码侧的现状是：
+
+- `host-process.ts` 用 `desktopNodeEnvironment(this.node, undefined, …)` 启动 Host，
+  而 `node-environment.ts` 只在传入 `bin` 时才改 PATH —— 也就是 Host 继承系统 PATH；
+- `bundled-pnpm.ts` 只给 pnpm 子进程加了 `scripts/node-bin` 这层 PATH；
+- `host/office.ts` 给 Office 技能传了 node 的绝对路径；
+- `@deepseek-ai/dsh-tool-workspace-dependencies` 只把绝对路径**告诉模型**，
+  其 README 明确写着 "changes neither PATH nor package-manager settings"。
+
+于是第三方插件里若直接 spawn `node` / `python3`，在没装运行时的机器上会失败。
+现在 `DSH-NEXT.sh` / `.cmd` 与 `install-plugins.sh` / `.cmd` 都会把
+`dependencies/node/bin`、`dependencies/python/bin`（Windows 为 `dependencies/python` 与 `Scripts`）
+前置到 PATH。
+
+验证（在**发布的 .16 包**上，用 `env -i PATH=/usr/bin:/bin` 模拟没装 Node/Python 的机器）：
+
+```
+$ sh ./DSH-NEXT.sh          # 探测脚本替换 exec 行后运行
+node: /tmp/rt/linux-unpacked/resources/runtime/x64/primary-runtime/dependencies/node/bin/node
+python3: /tmp/rt/linux-unpacked/resources/runtime/x64/primary-runtime/dependencies/python/bin/python3
+node runtime: v24.21.0
+python runtime: 3.12.14
+```
+
+同时回归了离线安装：干净 HOME 下 `install-plugins.sh` 仍装齐两个插件
+（`deps: ['@liustack/modsearch', 'dsh-ops']`）。

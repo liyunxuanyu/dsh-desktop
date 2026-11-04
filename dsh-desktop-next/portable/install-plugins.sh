@@ -75,7 +75,10 @@ cacheDir: $BUNDLE/cache
 preferOffline: true
 YAML
 
-NODE="$PKG/resources/runtime/x64/primary-runtime/dependencies/node/bin/node"
+RT="$PKG/resources/runtime/x64/primary-runtime/dependencies"
+PATH="$RT/node/bin:$RT/python/bin:$PATH"
+export PATH
+NODE="$RT/node/bin/node"
 PNPM="$PKG/resources/app.asar.unpacked/node_modules/pnpm/bin/pnpm.mjs"
 
 if [ ! -x "$NODE" ] || [ ! -f "$PNPM" ]; then

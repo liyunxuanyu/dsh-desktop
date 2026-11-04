@@ -53,6 +53,28 @@ home/                               你的数据（第一次启动后自动出�
 包内运行时：Node 24.21.0、pnpm 11.28.5、Python 3.12.14——
 技能脚本、MCP 服务可以直接调用 `node` / `pnpm` / `python3`。
 
+## 运行时不装也行：它们就在包里
+
+三个运行时都放在 `resources/runtime/x64/primary-runtime/dependencies/`：
+
+```
+node/bin/node          Node 24.21.0（含 npm、npx）
+pnpm/bin/pnpm.mjs      pnpm 11.28.5
+python/bin/python3     Python 3.12.14（含 pip 与常用库）
+```
+
+启动器会把 `node/bin` 与 `python/bin` 加进 **PATH**，所以：
+
+- 应用自己在包内 Node 上跑，不依赖系统 Node；
+- 你在界面里装的插件，**它的依赖由包内 pnpm + 包内离线仓库**装进该 Profile，
+  插件代码本身不需要系统运行时；
+- 插件、技能、MCP 服务里写 `node`、`python3`、`npm`、`pip` 会直接命中包内版本，
+  用户机器上没装 Node/Python 也能跑；
+- 少数需要“绝对路径”的场景（例如 Office 技能），应用会通过
+  `dsh-tool-workspace-dependencies` 工具把上面这些绝对路径告诉模型。
+
+唯一的前提是**用 `DSH-NEXT.cmd` / `./DSH-NEXT.sh` 启动**——它负责设置 PATH。
+
 ## 五、再装插件
 
 **界面里装**：设置 → 插件市场 / 插件管理，搜索安装。已指向包内离线仓库，

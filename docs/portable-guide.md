@@ -180,6 +180,12 @@ DSH-NEXT-reset.cmd --yes         :: Windows
 
 ## 10. 常见问题
 
+**插件用到的运行时从哪来？**
+全部来自包内 `resources/runtime/x64/primary-runtime/dependencies/`（Node 24.21.0、pnpm 11.28.5、
+Python 3.12.14）。启动器把 `node/bin` 与 `python/bin` 加进 PATH，插件的依赖由包内 pnpm
+从包内离线仓库装进 Profile；插件、技能、MCP 服务里直接写 `node` / `python3` / `npm` / `pip`
+都会命中包内版本，不需要系统预装。
+
 **需要自己装 Node / Python 吗？**
 不需要。包里已带 Node 24、pnpm 11、Python 3.12，启动器会把它们加进进程环境。
 

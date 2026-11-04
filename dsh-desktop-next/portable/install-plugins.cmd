@@ -30,7 +30,9 @@ set "NPM_CONFIG_USERCONFIG=%DSH_NEXT_PACKAGE%\.npmrc"
 rem 不设 NPM_CONFIG_CACHE/_STORE_DIR：大写变量会让 pnpm 的 cacheDir 变成空值，
 rem 路径统一用命令行标志（camelCase + 等号）传入。
 set "PROFILE_DIR=%DSH_DESKTOP_NEXT_HOME%\profiles\desktop"
-set "NODE=%DSH_NEXT_PACKAGE%\resources\runtime\x64\primary-runtime\dependencies\node\bin\node.exe"
+set "RT=%DSH_NEXT_PACKAGE%\resources\runtime\x64\primary-runtime\dependencies"
+set "PATH=%RT%\node\bin;%RT%\python;%PATH%"
+set "NODE=%RT%\node\bin\node.exe"
 set "PNPM=%DSH_NEXT_PACKAGE%\resources\app.asar.unpacked\node_modules\pnpm\bin\pnpm.mjs"
 if not exist "%NODE%" (echo 便捷包缺少内置 node & exit /b 1)
 if not exist "%PROFILE_DIR%" (echo Profile 尚未创建，请先启动一次便捷包 & exit /b 1)

@@ -16,4 +16,12 @@ cacheDir: $DIR/registry/cache
 preferOffline: true
 YAML
 done
+# 把包内运行时放进 PATH：插件、技能、MCP 服务里直接写 node / python3 / npm 也能命中包内的，
+# 不必要求用户机器上装过 Node 或 Python。
+RT="$DIR/resources/runtime/x64/primary-runtime/dependencies"
+if [ -d "$RT" ]; then
+  PATH="$RT/node/bin:$RT/python/bin:$PATH"
+  export PATH
+fi
+
 exec "$DIR/dsh-desktop-next" "$@"
