@@ -623,6 +623,17 @@ Windows PowerShell 5.1 正确读取。
 ### 最终状态
 
 - `v2.0.21-next-portable.20`：Windows + Linux 两个 job 全绿，Release 自动生成；
+  SHA256（下载后用随包 `verify-download.sh` 复核通过）：
+
+  | 产物 | 体积 | SHA256 |
+  | --- | --- | --- |
+  | `DSH-NEXT-2.0.21-next-x64-Portable.zip` | 555.36 MB | `2a654339…4da0a5` |
+  | `DSH-NEXT-2.0.21-next-linux-x64-portable.tar.gz` | 425.60 MB | `86ecf4a7…b88581` |
+  | `DSH-NEXT-2.0.21-next-offline-plugins.tar.gz` | 17.46 MB | `7d53f71a…c610160` |
+
+  在解压后的 `.20` 包上复核：相对路径 `./install-plugins.sh registry` 装齐两个插件、
+  干净 HOME 零写入、`node -v` = v24.21.0 / `python3 -V` = 3.12.14 且 `command -v node`
+  指向包内路径；
 - 单元测试 983 通过；`tsc --noEmit` 通过；
 - 包内一切可变数据（数据、插件、store、缓存、状态、下载的运行时）都在包目录内，
   `~/.cache`、`~/.local`、`~/.npm` 不再产生写入，删掉 `home/` 即可把包转交他人。
