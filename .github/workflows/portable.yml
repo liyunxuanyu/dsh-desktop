@@ -266,6 +266,11 @@ jobs:
           cat "$pkg/registry/plugins.json"
           test -f "$pkg/tools/refresh-library.mjs" || { echo 'library refresh tool missing from the package'; exit 1; }
           test -f "$pkg/update-plugins.sh" || { echo 'update-plugins.sh missing from the package'; exit 1; }
+          # cmd.exe reads batch files by byte offset: an LF-only file can lose a command.
+          grep -q $'\r' "$pkg/update-plugins.cmd" || { echo 'update-plugins.cmd lost its CRLF endings'; exit 1; }
+          grep -q $'\r' "$pkg/DSH-NEXT.cmd" || { echo 'DSH-NEXT.cmd lost its CRLF endings'; exit 1; }
+          # ASCII only: a UTF-8 Chinese byte would swallow the next line under a console code page.
+          LC_ALL=C grep -qP '[\x80-\xff]' "$pkg/DSH-NEXT.cmd" && { echo 'DSH-NEXT.cmd is no longer ASCII'; exit 1; } || true
           echo "SPECS=$specs" >> "$GITHUB_ENV"
       - name: Pack the standalone offline plugin bundle
         run: |

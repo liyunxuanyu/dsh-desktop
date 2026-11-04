@@ -1,6 +1,7 @@
-# Windows batch files are read by cmd.exe, which is line-oriented: a label on an
-# LF-only file can be missed. Keep them CRLF in the checkout.
-*.cmd text eol=crlf
 * text=auto eol=lf
 patches/*.patch text eol=lf whitespace=-space-before-tab,-blank-at-eol
 .yarn/patches/*.patch text eol=lf whitespace=-space-before-tab,-blank-at-eol
+# Windows batch files are read by cmd.exe by byte offset: an LF-only file can make it
+# miss a label. This rule sits last because a later pattern wins for the same attribute,
+# and `* text=auto eol=lf` above would otherwise override it.
+*.cmd text eol=crlf
