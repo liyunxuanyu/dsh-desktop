@@ -149,3 +149,39 @@ tar -xzf DSH-NEXT-2.0.21-next-offline-plugins.tar.gz
 3. 附带一个隐蔽 bug：`--store-dir` 用了相对路径、又放在 `cd "$scratch"` 之后，
    store 被写进临时目录随后删除。现在全部绝对路径，并在 CI 里断言 `store/v11` 存在，
    还加了一步「把离线包装进临时 Profile」的端到端检查（日志会打印 `offline install ok: …`）。
+
+## 分发校验与离线清单（tag `v2.0.21-next-portable.5`）
+
+https://github.com/liyunxuanyu/dsh-desktop/releases/tag/v2.0.21-next-portable.5
+
+Release 里除三个产物外，还带 `SHA256SUMS.txt` 与 `verify-download.sh / .ps1 / .cmd`，
+内网分发时可以只拿这四个小文件核对完整性：
+
+```sh
+curl -LO <release>/verify-download.sh
+curl -LO <release>/SHA256SUMS.txt
+curl -LO <release>/DSH-NEXT-2.0.21-next-x64-Portable.zip
+chmod +x verify-download.sh && ./verify-download.sh
+```
+
+Windows 用 `verify-download.cmd`（内部调用 `Get-FileHash`）。脚本对「通过 / 不匹配 / 缺失」
+三种情况分别给出结论并以非零码退出，可直接接进运维脚本。
+
+**离线包的 `--list`**：
+
+```sh
+./plugins-offline/install-plugins.sh --list      # 只列清单，不动 Profile
+```
+
+清单来自打包时写入的 `plugins.json`（插件名 + 版本），缺失时退回 tgz 文件名。
+不带参数直接运行则执行安装。
+
+### 本地验证过的行为
+
+| 场景 | 结果 |
+| --- | --- |
+| `--list` 在包内运行 | 正确列出 `dsh-ops@0.4.4`、`@liustack/modsearch@5.10.11` 与 store 体积 |
+| 校验通过 | `通过 a.txt` → exit 0 |
+| 文件被篡改 | `不匹配 a.txt` 并打印期望/实际哈希 → exit 1 |
+| 文件缺失 | `缺失 a.txt` → exit 1 |
+| 离线安装回归 | `offline install ok: @liustack/modsearch, dsh-ops`（CI 同步验证） |
