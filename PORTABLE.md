@@ -223,3 +223,36 @@ Windows 侧证据（run 41811933740）：
 与 `install-plugins.cmd` 里都写成了 `dependencies/node/node.exe`，少了 `bin/`，
 于是 PowerShell 报「不是可识别的 cmdlet/可执行程序」。现在两处都改正，
 并在 seeding 前断言解释器存在，避免再次静默失败。
+
+## UI 冒烟与包内注册表回退（tag `v2.0.21-next-portable.9`）
+
+https://github.com/liyunxuanyu/dsh-desktop/releases/tag/v2.0.21-next-portable.9
+
+CI 的 Linux 任务在打包前多跑一步仓库自带的 Playwright 验证（headless Chromium，
+不需要 X 服务器），日志证据：
+
+```
+Next onboarding passed in standalone pre-Host shell and official account continuation:
+independent native eligibility, official progress completed, state-read and save retries,
+six pages, artwork, back navigation, choices, skip, completion, inert cleanup, and no repeat
+```
+
+这一步覆盖首次引导的六个页面、跳过、完成、以及「不重复弹出」，比只测进程存活有意义得多。
+
+**安装脚本的注册表回退**：`install-plugins.sh/.cmd` 现在按
+`显式参数 > ./plugins-offline/ > 包内 registry/` 的顺序找插件包，
+所以不下载那个 18 MB 的独立包、直接用包内 `registry/` 也能装：
+
+```sh
+./install-plugins.sh          # 自动用 ./registry
+./install-plugins.sh --list   # 看清单
+```
+
+本地端到端验证：干净 Profile 下从包内 registry 安装，`dependencies` 得到
+`["@liustack/modsearch", "dsh-ops"]`。
+
+### 又一个环境坑：git push tag 被服务端拒绝
+
+`git push refs/tags/…` 两次分别返回 `Internal Server Error` 与 `fatal error in commit_refs`，
+改用 GitHub API `POST /git/refs` 创建 tag 立即可用（201）。分支 push 正常，仅 tag 受影响；
+以后打 tag 走 API 更省事。
