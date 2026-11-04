@@ -53,8 +53,7 @@ jobs:
           yarn workspace dsh-desktop-next build
       - name: Package the portable archive
         shell: bash
-        env:
-          DSH_WINDOWS_PACKAGE_COMPRESSION: store
+        # No store override: release archives must be compressed (store made the zip 1.6 GB).
         run: yarn workspace dsh-desktop-next dist:win-portable
       - name: Unpack the artifact and add the portable shell
         shell: pwsh
@@ -172,14 +171,19 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" -D dist
+      - name: Collect and checksum
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          find dist -type f \( -name '*.zip' -o -name '*.tar.gz' \) -exec cp {} out/ \;
+          cd out && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt && du -sh .
       - name: Create the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          find dist -type f \( -name '*.zip' -o -name '*.tar.gz' \) -print
-          gh release create "$GITHUB_REF_NAME" \
-            $(find dist -type f \( -name '*.zip' -o -name '*.tar.gz' \) -print) \
+          ls -la out
+          gh release create "$GITHUB_REF_NAME" out/* \
             --repo "$GITHUB_REPOSITORY" \
             --title "DSH NEXT 便捷包 $GITHUB_REF_NAME" \
             --notes "自包含桌面便捷包：数据目录随包、预装 dsh-ops 与 modsearch、内置离线 pnpm store。Windows 与 Linux 产物均在各自原生 runner 上完成打包与启动校验。"
