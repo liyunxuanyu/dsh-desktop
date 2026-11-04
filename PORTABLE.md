@@ -198,3 +198,28 @@ Windows 用 `verify-download.cmd`（内部调用 `Get-FileHash`）。脚本对�
 - Windows 任务补上 **registry seeding**：此前只有 Linux 包带 `registry/store`，
   Windows 包的 `.npmrc` 指向一个不存在的目录，包内离线装插件实际无效。
   现在两边都用包内 node + pnpm 走真实依赖解析填充 store，并断言 `store/v11` 存在。
+
+## 第十版（tag `v2.0.21-next-portable.8`）— 全绿
+
+https://github.com/liyunxuanyu/dsh-desktop/releases/tag/v2.0.21-next-portable.8
+
+| 资产 | 大小 | SHA256 |
+| --- | --- | --- |
+| `DSH-NEXT-2.0.21-next-x64-Portable.zip` | 582.34 MB | `343325fe…039ed5` |
+| `DSH-NEXT-2.0.21-next-linux-x64-portable.tar.gz` | 445.35 MB | `9d0709ed…a7abe7` |
+| `DSH-NEXT-2.0.21-next-offline-plugins.tar.gz` | 18.09 MB | `e1271b6b…7411ab` |
+| `SHA256SUMS.txt` + `verify-download.{sh,ps1,cmd}` | — | — |
+
+Windows 侧证据（run 41811933740）：
+- `preinstalled plugins: dsh-ops@0.4.4, @liustack/modsearch@5.10.11`
+- `registry/` 内出现 `dsh-ops-0.4.4.tgz`、`liustack-modsearch-5.10.11.tgz`（store seeding 成功）
+- `preinstalled: dsh-ops` / `preinstalled: @liustack/modsearch`（插件随包且已解包）
+- 启动 60 s 后 `home/data` 中出现 `electron-user-data`，`%APPDATA%\DSH NEXT\home` 未被创建
+
+### 第五次踩坑：Windows 的 node 在 `bin/` 下
+
+`primary-runtime.ts:158` 把 Windows 的 node 从归档里的 `node.exe` 复制到
+`dependencies/node/bin/node.exe`——和 Linux 的 `bin/node` 同构。我在 registry seeding
+与 `install-plugins.cmd` 里都写成了 `dependencies/node/node.exe`，少了 `bin/`，
+于是 PowerShell 报「不是可识别的 cmdlet/可执行程序」。现在两处都改正，
+并在 seeding 前断言解释器存在，避免再次静默失败。
