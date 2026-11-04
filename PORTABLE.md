@@ -115,3 +115,37 @@ https://github.com/liyunxuanyu/dsh-desktop/releases/tag/v2.0.21-next-portable
 
 首次发布踩到的坑：CI 里为省时间设了 `DSH_WINDOWS_PACKAGE_COMPRESSION=store`，
 发布资产因此是未压缩的 1.66 GB zip；去掉该覆盖后按 `build.win.compression: normal` 压到 582 MB。
+
+## 预装清单数据化 + 离线插件包（tag `v2.0.21-next-portable.4`）
+
+https://github.com/liyunxuanyu/dsh-desktop/releases/tag/v2.0.21-next-portable.4
+
+| 资产 | 大小 | SHA256 |
+| --- | --- | --- |
+| `DSH-NEXT-2.0.21-next-x64-Portable.zip` | 582.3 MB | `3d503abd…d3b98a` |
+| `DSH-NEXT-2.0.21-next-linux-x64-portable.tar.gz` | 445.3 MB | `c7967469…49f7e1` |
+| `DSH-NEXT-2.0.21-next-offline-plugins.tar.gz` | 18.1 MB | `234a9c34…9c3007` |
+| `SHA256SUMS.txt` | — | — |
+
+**加插件现在是改数据，不是改代码**：`dsh-desktop-next/package.json` 的
+`dsh.portableBundles` 列出预装 bundle，`dependencies` 给出对应版本；
+`profiles.ts` 在运行时读这个清单拼进 `WEB_BUNDLES`，CI 则据此灌 pnpm store 与 `registry/`。
+
+**离线插件包**（独立分发，18 MB）：内含插件 tgz、按依赖闭包写满的 pnpm store，
+以及 `install-plugins.sh` / `.cmd`。用法：
+
+```sh
+tar -xzf DSH-NEXT-2.0.21-next-offline-plugins.tar.gz
+./plugins-offline/install-plugins.sh          # 先启动一次便捷包生成 Profile
+```
+
+### 这一步踩的两个坑（都已修）
+
+1. **清单文件不在 asar 里**：最初把清单放在 `portable-bundles.json` 兄弟文件，
+   workspace 包的 `files` 字段不生效，打包后启动直接 `ENOENT portable-bundles.json`。
+   改为放在 `package.json` 的 `dsh.portableBundles`，它一定随 asar 走。
+2. **`pnpm store add` 不写依赖闭包**：它只存被点名的包，`commander`/`undici` 缺失，
+   离线安装报 `ERR_PNPM_NO_OFFLINE_TARBALL`。改为用一次性的 `pnpm add` 解析整个闭包写进 store。
+3. 附带一个隐蔽 bug：`--store-dir` 用了相对路径、又放在 `cd "$scratch"` 之后，
+   store 被写进临时目录随后删除。现在全部绝对路径，并在 CI 里断言 `store/v11` 存在，
+   还加了一步「把离线包装进临时 Profile」的端到端检查（日志会打印 `offline install ok: …`）。
