@@ -183,5 +183,10 @@ Windows 用 `verify-download.cmd`（内部调用 `Get-FileHash`）。脚本对�
 | `--list` 在包内运行 | 正确列出 `dsh-ops@0.4.4`、`@liustack/modsearch@5.10.11` 与 store 体积 |
 | 校验通过 | `通过 a.txt` → exit 0 |
 | 文件被篡改 | `不匹配 a.txt` 并打印期望/实际哈希 → exit 1 |
-| 文件缺失 | `缺失 a.txt` → exit 1 |
+| 只下载了部分资产 | 已核对的通过、未下载的跳过 → exit 0（避免运维误报） |
+| 一个待校验文件都没有 | `没有找到任何待校验文件` → exit 1 |
 | 离线安装回归 | `offline install ok: @liustack/modsearch, dsh-ops`（CI 同步验证） |
+
+用真实 Release 资产验证过：下载 `v2.0.21-next-portable.5` 的
+`DSH-NEXT-2.0.21-next-offline-plugins.tar.gz`（18 MB）后，
+`verify-download.sh` 报 `通过 …` 并与发布页 SHA256 一致。

@@ -27,6 +27,7 @@ fi
 
 missing=0
 failed=0
+checked=0
 while read -r expected name; do
   case "$expected" in ''|\#*) continue ;; esac
   [ -n "${name:-}" ] || continue
@@ -36,6 +37,7 @@ while read -r expected name; do
     missing=$((missing + 1))
     continue
   fi
+  checked=$((checked + 1))
   actual=$($HASH "$file" | cut -d' ' -f1)
   if [ "$actual" = "$expected" ]; then
     echo "通过  $name"
@@ -48,9 +50,18 @@ while read -r expected name; do
 done < "$SUMS"
 
 echo
-if [ "$missing" -eq 0 ] && [ "$failed" -eq 0 ]; then
-  echo "全部校验通过。"
+# 只核对在场文件：通常只下载了其中一两个产物，未下载的不算失败。
+if [ "$checked" -eq 0 ]; then
+  echo "没有找到任何待校验文件（缺失 $missing 个）。" >&2
+  exit 1
+fi
+if [ "$failed" -ne 0 ]; then
+  echo "校验未通过：不匹配 $failed 个（已核对 $checked 个）。" >&2
+  exit 1
+fi
+if [ "$missing" -ne 0 ]; then
+  echo "已核对 $checked 个文件，全部通过；另有 $missing 个未下载，跳过。"
   exit 0
 fi
-echo "校验未通过：缺失 $missing 个，不匹配 $failed 个。" >&2
-exit 1
+echo "全部校验通过（$checked 个文件）。"
+exit 0
