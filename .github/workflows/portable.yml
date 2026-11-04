@@ -71,7 +71,9 @@ jobs:
           $pnpm = Join-Path $pkg 'resources/app.asar.unpacked/node_modules/pnpm/bin/pnpm.mjs'
           if (-not (Test-Path $node)) { throw "bundled node missing: $node" }
           if (-not (Test-Path $pnpm)) { throw "bundled pnpm missing: $pnpm" }
-          New-Item -ItemType Directory -Force -Path (Join-Path $pkg 'registry/store'), (Join-Path $pkg 'registry/cache'), (Join-Path $pkg 'home') | Out-Null
+          $store = Join-Path $pkg 'registry/store'
+          $cache = Join-Path $pkg 'registry/cache'
+          New-Item -ItemType Directory -Force -Path $store, $cache, (Join-Path $pkg 'home') | Out-Null
           $specs = @((node -e "const m=require('./dsh-desktop-next/package.json');const d=m.dependencies;console.log(m.dsh.portableBundles.map(n=>n+'@'+(d[n]??'latest')).join(' '))").Split(' '))
           Write-Host "preinstalled plugins: $($specs -join ', ')"
           $scratch = Join-Path $env:RUNNER_TEMP 'store-seed'
@@ -79,10 +81,11 @@ jobs:
           '{"name":"store-seed","private":true}' | Set-Content (Join-Path $scratch 'package.json')
           Push-Location $scratch
           # Same trap as on Linux: the store must be seeded through a real resolution, not store add.
-          & $node $pnpm add --store-dir (Join-Path $pkg 'registry/store') --config.cacheDir=(Join-Path $pkg 'registry/cache') @specs
+          # PowerShell passes an unevaluated `--flag=(Join-Path …)` through literally, so interpolate.
+          & $node $pnpm add --store-dir $store "--config.cacheDir=$cache" @specs
           Pop-Location
-          if (-not (Test-Path (Join-Path $pkg 'registry/store/v11'))) { throw 'registry store was not populated' }
-          if (-not (Test-Path (Join-Path $pkg 'registry/cache/v12/metadata'))) { throw 'registry metadata cache was not populated' }
+          if (-not (Test-Path (Join-Path $store 'v11'))) { throw 'registry store was not populated' }
+          if (-not (Test-Path (Join-Path $cache 'v12/metadata'))) { throw 'registry metadata cache was not populated' }
           & npm pack --silent --pack-destination (Join-Path $pkg 'registry') @specs
           Get-ChildItem (Join-Path $pkg 'registry')
       - name: Assert the preinstalled plugins travel with the package
