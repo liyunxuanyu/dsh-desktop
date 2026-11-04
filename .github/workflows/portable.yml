@@ -67,8 +67,10 @@ jobs:
         shell: pwsh
         run: |
           $pkg = $env:DSH_PKG
-          $node = Join-Path $pkg 'resources/runtime/x64/primary-runtime/dependencies/node/node.exe'
+          $node = Join-Path $pkg 'resources/runtime/x64/primary-runtime/dependencies/node/bin/node.exe'
           $pnpm = Join-Path $pkg 'resources/app.asar.unpacked/node_modules/pnpm/bin/pnpm.mjs'
+          if (-not (Test-Path $node)) { throw "bundled node missing: $node" }
+          if (-not (Test-Path $pnpm)) { throw "bundled pnpm missing: $pnpm" }
           New-Item -ItemType Directory -Force -Path (Join-Path $pkg 'registry/store'), (Join-Path $pkg 'registry/cache'), (Join-Path $pkg 'home') | Out-Null
           $specs = @((node -e "const m=require('./dsh-desktop-next/package.json');const d=m.dependencies;console.log(m.dsh.portableBundles.map(n=>n+'@'+(d[n]??'latest')).join(' '))").Split(' '))
           Write-Host "preinstalled plugins: $($specs -join ', ')"

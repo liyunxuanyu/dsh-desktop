@@ -28,7 +28,7 @@ set "NPM_CONFIG_USERCONFIG=%DSH_NEXT_PACKAGE%\.npmrc"
 set "NPM_CONFIG_STORE_DIR=%BUNDLE%\store"
 set "NPM_CONFIG_CACHE=%BUNDLE%\cache"
 set "PROFILE_DIR=%DSH_DESKTOP_NEXT_HOME%\profiles\desktop"
-set "NODE=%DSH_NEXT_PACKAGE%\resources\runtime\x64\primary-runtime\dependencies\node\node.exe"
+set "NODE=%DSH_NEXT_PACKAGE%\resources\runtime\x64\primary-runtime\dependencies\node\bin\node.exe"
 set "PNPM=%DSH_NEXT_PACKAGE%\resources\app.asar.unpacked\node_modules\pnpm\bin\pnpm.mjs"
 if not exist "%NODE%" (echo 便捷包缺少内置 node & exit /b 1)
 if not exist "%PROFILE_DIR%" (echo Profile 尚未创建，请先启动一次便捷包 & exit /b 1)
