@@ -84,3 +84,21 @@ Windows 用 `dist:win-portable`（须原生 Windows，rcedit 改写 exe）；`.g
 | `dsh-desktop-next/src/profiles.ts` | +7/−1：`PREINSTALLED_BUNDLES` 并入 `WEB_BUNDLES` |
 | `dsh-desktop-next/package.json` | 加两个插件依赖 + 两条 `asarUnpack` |
 | `.github/workflows/portable.yml` | 新增：Windows/Linux 双平台便捷包 |
+
+## CI 验证结果（liyunxuanyu/dsh-desktop，run 41776232911）
+
+两个 job 全绿，关键证据：
+
+| 平台 | 证据 |
+| --- | --- |
+| Windows | `Packaged Next Host booted from …\app.asar: profile desktop, loopback http://127.0.0.1:52211, diagnostics export ok`；`Verified the archive against the prepared Next payload: 31284 files (3671 unpacked) for win32`；启动 60 s 后 `home/data` 内含 `electron-user-data`、`logs`，且 `%APPDATA%\DSH NEXT\home` 未被写入 |
+| Linux | `Verified the archive against the prepared Next payload: 20995 files (2288 unpacked) for linux`；`xvfb-run` 真开窗口后 `home/data` 内含 `electron-user-data`，`~/.dsh/profiles` 不存在 |
+
+另外 Windows 侧日志显示原生插件确实加载：
+`Packaged computer-use driver loaded from …\cua-driver-win32-x64-msvc: 56 tools`。
+
+产物：`dsh-next-portable-win-x64`（613 MB）、`dsh-next-portable-linux-x64`（443 MB），
+在 Actions run 页面下载，保留至 2027-02-02。
+
+注意：`workflow_dispatch` 只有在默认分支存在该工作流时可用；当前默认分支是 `master`，
+所以要么把改动合进 `master`，要么靠 `push` 到 `portable/next` 触发。
