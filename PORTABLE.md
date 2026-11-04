@@ -102,3 +102,16 @@ Windows 用 `dist:win-portable`（须原生 Windows，rcedit 改写 exe）；`.g
 
 注意：`workflow_dispatch` 只有在默认分支存在该工作流时可用；当前默认分支是 `master`，
 所以要么把改动合进 `master`，要么靠 `push` 到 `portable/next` 触发。
+
+## 发布产物（tag `v2.0.21-next-portable`）
+
+https://github.com/liyunxuanyu/dsh-desktop/releases/tag/v2.0.21-next-portable
+
+| 资产 | 大小 | SHA256 |
+| --- | --- | --- |
+| `DSH-NEXT-2.0.21-next-x64-Portable.zip` | 582.3 MB | `0124b669f76e77ed898b45e8532bf4d898c703e6db04bd10591a46738d84b441` |
+| `DSH-NEXT-2.0.21-next-linux-x64-portable.tar.gz` | 445.8 MB | `bc5626fe45fbdf6b9315a015596e207e20c0dd5c8e25d3573f31858ae32860bc` |
+| `SHA256SUMS.txt` | — | — |
+
+首次发布踩到的坑：CI 里为省时间设了 `DSH_WINDOWS_PACKAGE_COMPRESSION=store`，
+发布资产因此是未压缩的 1.66 GB zip；去掉该覆盖后按 `build.win.compression: normal` 压到 582 MB。
