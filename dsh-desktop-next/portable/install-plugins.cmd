@@ -27,8 +27,8 @@ if "%LIST_ONLY%"=="1" (
 
 if "%DSH_DESKTOP_NEXT_HOME%"=="" set "DSH_DESKTOP_NEXT_HOME=%DSH_NEXT_PACKAGE%\home\data"
 set "NPM_CONFIG_USERCONFIG=%DSH_NEXT_PACKAGE%\.npmrc"
-set "NPM_CONFIG_STORE_DIR=%BUNDLE%\store"
-set "NPM_CONFIG_CACHE=%BUNDLE%\cache"
+rem 不设 NPM_CONFIG_CACHE/_STORE_DIR：大写变量会让 pnpm 的 cacheDir 变成空值，
+rem 路径统一用命令行标志（camelCase + 等号）传入。
 set "PROFILE_DIR=%DSH_DESKTOP_NEXT_HOME%\profiles\desktop"
 set "NODE=%DSH_NEXT_PACKAGE%\resources\runtime\x64\primary-runtime\dependencies\node\bin\node.exe"
 set "PNPM=%DSH_NEXT_PACKAGE%\resources\app.asar.unpacked\node_modules\pnpm\bin\pnpm.mjs"
@@ -39,7 +39,7 @@ for %%f in ("%BUNDLE%\*.tgz") do echo   %%~nxf
 cd /d "%PROFILE_DIR%"
 for %%f in ("%BUNDLE%\*.tgz") do (
   echo 安装 %%~nxf
-  "%NODE%" "%PNPM%" add --offline --store-dir "%BUNDLE%\store" "%%f"
+  "%NODE%" "%PNPM%" add --offline --store-dir "%BUNDLE%\store" --config.cacheDir="%BUNDLE%\cache" "%%f"
 )
 echo 完成。重新启动便捷包使插件生效。
 endlocal

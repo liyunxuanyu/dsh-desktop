@@ -59,9 +59,10 @@ if [ "$LIST_ONLY" -eq 1 ]; then
 fi
 
 export DSH_DESKTOP_NEXT_HOME="${DSH_DESKTOP_NEXT_HOME:-$PKG/home/data}"
+# 不导出 NPM_CONFIG_CACHE/_STORE_DIR：大写变量会让 pnpm 的 cacheDir 解析成空值，
+# 路径统一用命令行标志传入（camelCase，等号形式）。
+unset NPM_CONFIG_CACHE NPM_CONFIG_STORE_DIR 2>/dev/null || true
 export NPM_CONFIG_USERCONFIG="$PKG/.npmrc"
-export NPM_CONFIG_STORE_DIR="$BUNDLE/store"
-export NPM_CONFIG_CACHE="$BUNDLE/cache"
 
 PROFILE_DIR="$DSH_DESKTOP_NEXT_HOME/profiles/desktop"
 NODE="$PKG/resources/runtime/x64/primary-runtime/dependencies/node/bin/node"
@@ -83,6 +84,7 @@ for tgz in "$BUNDLE"/*.tgz; do
   [ -e "$tgz" ] || continue
   echo "安装 $(basename "$tgz")"
   # --offline 只在 store 命中时成功；依赖闭包必须随插件一起进 store（打包脚本已如此处理）。
-  "$NODE" "$PNPM" add --offline --store-dir "$BUNDLE/store" "$tgz"
+  # --config.cacheDir 指向包内缓存：离线解析 commander 这类范围依赖需要元数据，干净机器上没有全局缓存。
+  "$NODE" "$PNPM" add --offline --store-dir "$BUNDLE/store" --config.cacheDir="$BUNDLE/cache" "$tgz"
 done
 echo "完成。重新启动便捷包使插件生效。"

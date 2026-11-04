@@ -79,9 +79,10 @@ jobs:
           '{"name":"store-seed","private":true}' | Set-Content (Join-Path $scratch 'package.json')
           Push-Location $scratch
           # Same trap as on Linux: the store must be seeded through a real resolution, not store add.
-          & $node $pnpm add --store-dir (Join-Path $pkg 'registry/store') @specs
+          & $node $pnpm add --store-dir (Join-Path $pkg 'registry/store') --config.cacheDir=(Join-Path $pkg 'registry/cache') @specs
           Pop-Location
           if (-not (Test-Path (Join-Path $pkg 'registry/store/v11'))) { throw 'registry store was not populated' }
+          if (-not (Test-Path (Join-Path $pkg 'registry/cache/v12/metadata'))) { throw 'registry metadata cache was not populated' }
           & npm pack --silent --pack-destination (Join-Path $pkg 'registry') @specs
           Get-ChildItem (Join-Path $pkg 'registry')
       - name: Assert the preinstalled plugins travel with the package
@@ -170,11 +171,14 @@ jobs:
           # into the same store.
           scratch=$(mktemp -d)
           printf '{"name":"store-seed","private":true}\n' > "$scratch/package.json"
-          ( cd "$scratch" && "$node_bin" "$pnpm_mjs" add --store-dir "$pkg/registry/store" $specs )
+          # The metadata cache must travel with the store: offline range resolution (commander@^13)
+          # reads it, and a clean machine has none.
+          ( cd "$scratch" && "$node_bin" "$pnpm_mjs" add --store-dir "$pkg/registry/store" --config.cacheDir="$pkg/registry/cache" $specs )
           rm -rf "$scratch"
           # Guard the trap that bit us twice: a relative --store-dir inside the scratch cd wrote the
           # store into /tmp and deleted it, leaving an offline install that cannot resolve deps.
           test -d "$pkg/registry/store/v11" || { echo 'registry store was not populated'; exit 1; }
+          test -d "$pkg/registry/cache/v12/metadata" || { echo 'registry metadata cache was not populated'; exit 1; }
           npm pack --silent --pack-destination "$pkg/registry" $specs
           echo "SPECS=$specs" >> "$GITHUB_ENV"
       - name: Pack the standalone offline plugin bundle
@@ -188,9 +192,10 @@ jobs:
           mkdir -p "$out/store" "$out/cache"
           scratch=$(mktemp -d)
           printf '{"name":"store-seed","private":true}\n' > "$scratch/package.json"
-          ( cd "$scratch" && "$node_bin" "$pnpm_mjs" add --store-dir "$out/store" $SPECS )
+          ( cd "$scratch" && "$node_bin" "$pnpm_mjs" add --store-dir "$out/store" --config.cacheDir="$out/cache" $SPECS )
           rm -rf "$scratch"
           test -d "$out/store/v11" || { echo 'offline store was not populated'; exit 1; }
+          test -d "$out/cache/v12/metadata" || { echo 'offline metadata cache was not populated'; exit 1; }
           npm pack --silent --pack-destination "$out" $SPECS
           cp dsh-desktop-next/portable/install-plugins.sh dsh-desktop-next/portable/install-plugins.cmd "$out"/
           node -e "const m=require('./dsh-desktop-next/package.json');const d=m.dependencies;require('fs').writeFileSync(process.argv[1], JSON.stringify({version: m.version, plugins: m.dsh.portableBundles.map(n=>({name:n, version:d[n]??'latest'}))}, null, 2)+'\\n')" "$out/plugins.json"
