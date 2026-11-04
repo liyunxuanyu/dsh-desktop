@@ -118,6 +118,79 @@ jobs:
           } finally {
             if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force }
           }
+          # The application points the Profile's pnpm at the package with relative paths, so the
+          # folder can be moved after the first launch and offline installs still resolve.
+          $workspace = Join-Path $pkg 'home/data/profiles/desktop/pnpm-workspace.yaml'
+          if (-not (Test-Path $workspace)) { throw 'the Profile got no package-local pnpm settings' }
+          Get-Content $workspace
+          $text = Get-Content $workspace -Raw
+          if ($text -notmatch [regex]::Escape('storeDir: ../../../../registry/store')) { throw 'pnpm store is not inside the package' }
+          if ($text -notmatch [regex]::Escape('cacheDir: ../../../../registry/cache')) { throw 'pnpm cache is not inside the package' }
+          if (-not (Test-Path (Join-Path $pkg 'home/cache')) -or -not (Test-Path (Join-Path $pkg 'home/state'))) { throw 'portable cache/state roots were not created' }
+      - name: Keep an online plugin install inside the package
+        shell: pwsh
+        run: |
+          $pkg = $env:DSH_PKG
+          $audit = Join-Path $env:RUNNER_TEMP 'portable-audit'
+          New-Item -ItemType Directory -Force -Path $audit | Out-Null
+          $profile = Join-Path $pkg 'home/data/profiles/probe'
+          New-Item -ItemType Directory -Force -Path $profile | Out-Null
+          '{"name":"probe","private":true,"dsh":{"profile":{"bundles":[]}}}' | Set-Content (Join-Path $profile 'package.json') -Encoding utf8
+          $node = Join-Path $pkg 'resources/runtime/x64/primary-runtime/dependencies/node/bin/node.exe'
+          $pnpm = Join-Path $pkg 'resources/app.asar.unpacked/node_modules/pnpm/bin/pnpm.mjs'
+          # The same variables the application exports: the machine's home must stay untouched.
+          $names = @('HOME','USERPROFILE','LOCALAPPDATA','APPDATA','XDG_CACHE_HOME','XDG_STATE_HOME','XDG_DATA_HOME','pnpm_config_store_dir','pnpm_config_cache_dir','pnpm_config_state_dir','npm_config_cache','npm_config_prefix','UV_CACHE_DIR','PIP_CACHE_DIR')
+          $saved = @{}
+          foreach ($name in $names) { $saved[$name] = [Environment]::GetEnvironmentVariable($name, 'Process') }
+          try {
+            $env:HOME = $audit
+            $env:USERPROFILE = $audit
+            $env:LOCALAPPDATA = Join-Path $audit 'local'
+            $env:APPDATA = Join-Path $audit 'roaming'
+            $env:XDG_CACHE_HOME = Join-Path $pkg 'home/cache'
+            $env:XDG_STATE_HOME = Join-Path $pkg 'home/state'
+            $env:XDG_DATA_HOME = Join-Path $pkg 'home/share'
+            $env:pnpm_config_store_dir = Join-Path $pkg 'registry/store'
+            $env:pnpm_config_cache_dir = Join-Path $pkg 'registry/cache'
+            $env:pnpm_config_state_dir = Join-Path $pkg 'home/state/pnpm'
+            $env:npm_config_cache = Join-Path $pkg 'home/cache/npm'
+            $env:npm_config_prefix = Join-Path $pkg 'home/npm-global'
+            $env:UV_CACHE_DIR = Join-Path $pkg 'home/cache/uv'
+            $env:PIP_CACHE_DIR = Join-Path $pkg 'home/cache/pip'
+            Push-Location $profile
+            & $node $pnpm add dsh-ops --config.minimumReleaseAge=0
+            Pop-Location
+          } finally {
+            foreach ($name in $names) {
+              if ($null -eq $saved[$name]) { [Environment]::SetEnvironmentVariable($name, $null, 'Process') }
+              else { [Environment]::SetEnvironmentVariable($name, $saved[$name], 'Process') }
+            }
+          }
+          $leftovers = Get-ChildItem $audit -Recurse -Force -ErrorAction SilentlyContinue | Select-Object -First 5
+          if ($leftovers) { $leftovers | ForEach-Object { $_.FullName }; throw 'an online install wrote outside the package' }
+          if (-not (Test-Path (Join-Path $profile 'node_modules/dsh-ops'))) { throw 'the online install produced nothing' }
+          Remove-Item -Recurse -Force (Join-Path $pkg 'home/data') -ErrorAction SilentlyContinue
+      - name: Refresh the packaged plugin library
+        shell: pwsh
+        run: |
+          $pkg = $env:DSH_PKG
+          & (Join-Path $pkg 'update-plugins.cmd') --latest
+          if ($LASTEXITCODE -ne 0) { throw 'the library refresh failed' }
+          $manifest = Join-Path $pkg 'registry/plugins.json'
+          if (-not (Test-Path $manifest)) { throw 'the refresh wrote no plugin list' }
+          Get-Content $manifest
+          # The refreshed library must still install offline from the store it just grew.
+          $profile = Join-Path $pkg 'home/data/profiles/desktop'
+          New-Item -ItemType Directory -Force -Path $profile | Out-Null
+          '{"name":"probe","private":true,"dsh":{"profile":{"bundles":[]}}}' | Set-Content (Join-Path $profile 'package.json') -Encoding utf8
+          $env:DSH_NEXT_PACKAGE = $pkg
+          $env:DSH_DESKTOP_NEXT_HOME = Join-Path $pkg 'home/data'
+          & (Join-Path $pkg 'install-plugins.cmd') (Join-Path $pkg 'registry')
+          if ($LASTEXITCODE -ne 0) { throw 'the refreshed library no longer installs offline' }
+          $deps = Get-Content (Join-Path $profile 'package.json') -Raw | ConvertFrom-Json
+          if (-not $deps.dependencies -or $deps.dependencies.PSObject.Properties.Count -eq 0) { throw 'the offline install produced no dependencies' }
+          Write-Host ('refreshed library installs offline: ' + (($deps.dependencies.PSObject.Properties.Name) -join ', '))
+          Remove-Item -Recurse -Force (Join-Path $pkg 'home/data') -ErrorAction SilentlyContinue
       - uses: actions/upload-artifact@v4
         with:
           name: dsh-next-portable-win-x64
