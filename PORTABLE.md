@@ -350,3 +350,28 @@ $ sh ./DSH-NEXT-reset.sh --yes
 ```
 
 发布：https://github.com/liyunxuanyu/dsh-desktop/releases/tag/v2.0.21-next-portable.13
+
+## 应用内装插件也走包内离线仓库（tag `v2.0.21-next-portable.14`）
+
+pnpm 11 的配置读取顺序很容易踩坑，实测结论：
+
+| 写法 | 是否生效 |
+| --- | --- |
+| `--config.cacheDir=<abs>` / `--config.storeDir=<abs>`（驼峰 + 等号） | ✅ |
+| `--config.cache-dir=<abs>`（短横线） | ❌ 被忽略 |
+| `--config.cacheDir <abs>`（空格分隔） | ❌ 报 `opts.cacheDir is required` |
+| `NPM_CONFIG_CACHE` / `NPM_CONFIG_STORE_DIR` 环境变量 | ❌ 会让 cacheDir 解析成空值 |
+| `.npmrc` 里的 `storeDir=` / `cacheDir=` | ❌ 不读 |
+| Profile 下 `pnpm-workspace.yaml` 的 `storeDir:` / `cacheDir:` | ✅ |
+
+因此启动器（`DSH-NEXT.sh/.cmd`）与 `install-plugins.sh/.cmd` 现在都会在每个
+`home/data/profiles/*/` 下写一份 `pnpm-workspace.yaml`：
+
+```yaml
+storeDir: <包>/registry/store
+cacheDir: <包>/registry/cache
+preferOffline: true
+```
+
+这样**界面里装插件**也会命中包内 store，而不是退回 `~/.local/share/pnpm/store`。
+验证：干净 `HOME` 下 `install-plugins.sh` 装齐两个插件，`deps: ['@liustack/modsearch', 'dsh-ops']`。
