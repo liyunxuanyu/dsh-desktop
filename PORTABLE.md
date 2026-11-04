@@ -312,3 +312,41 @@ PR 说明草稿在 `/root/dsh-next-desktop/upstream/PR.md`，补丁同目录。
 导致后续 `git checkout master` 拿到旧树（`package.json` 没有 `dsh.portableBundles`，
 单测 1 条失败、脚本报 `KeyError`）。用 `git reset --hard 4ac8d23` 修正引用后，
 同步「允许空清单」的重构，全量单测恢复 **110 文件 / 978 通过 / 17 跳过**。
+
+## 离线安装的真实缺陷与修复（tag `v2.0.21-next-portable.13`）
+
+把发布的 Linux 包解压到干净环境实测时发现：`install-plugins.sh` 装 `@liustack/modsearch`
+直接失败——
+
+```
+[ERR_PNPM_NO_OFFLINE_META] Failed to resolve commander@>=13.1.0 <14.0.0-0
+  in package mirror …/registry/cache/v12/metadata/https%3A+registry.npmjs.org/commander.jsonl
+```
+
+原因：pnpm 的 store 只有 tarball，**解析 `commander@^13.1.0` 这类范围依赖需要元数据缓存**，
+而包内 `registry/cache` 一直是空的。CI 里之所以没暴露，是因为同一台机器上刚做过 seeding，
+全局缓存里恰好有元数据。
+
+修复分三处：
+
+1. **打包时把元数据一起写进包**：seeding 的 `pnpm add` 增加 `--config.cacheDir=<包内 cache>`，
+   并断言 `registry/cache/v12/metadata` 存在；
+2. **安装时指向同一份 cache**：`install-plugins.sh/.cmd` 传 `--config.cacheDir=…`；
+3. **两个坑**：
+   - 标志必须写成 **camelCase 且用等号**（`--config.cacheDir=…`）。短横线式 `--config.cache-dir`
+     会被忽略；把路径当作下一个参数传，pnpm 还会报 `opts.cacheDir is required`。
+   - 不能导出 `NPM_CONFIG_CACHE` / `NPM_CONFIG_STORE_DIR`：大写变量会让 pnpm 把 cacheDir 解析成空值。
+   - PowerShell 里 `--config.cacheDir=(Join-Path …)` 会按字面量传给 pnpm，必须先算好再插值
+     （这正是 `.12` 的 Windows 失败原因）。
+
+验证（在**发布的 .13 包**上，`HOME` 指向全新的空目录）：
+
+```
+$ HOME=/tmp/cleanhome5 sh ./install-plugins.sh
+Done in 1.8s using pnpm v11.28.5
+deps: ['@liustack/modsearch', 'dsh-ops']
+$ sh ./DSH-NEXT-reset.sh --yes
+已清空用户数据 …
+```
+
+发布：https://github.com/liyunxuanyu/dsh-desktop/releases/tag/v2.0.21-next-portable.13
