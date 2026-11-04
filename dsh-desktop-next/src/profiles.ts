@@ -17,10 +17,21 @@ import { PROFILE_TEMPLATES } from './upstream-family.ts'
 
 export const NEXT_PACKAGE = fileURLToPath(new URL('../package.json', import.meta.url))
 /**
- * Bundles every new Next profile starts with. The last two ship inside the package so the
- * plugins work offline: the native file/search tools and the web search client.
+ * Bundles every new Next profile starts with, read from `portable-bundles.json` so adding a
+ * plugin is a data edit rather than a code change. Each listed package must also be a
+ * dependency of this package, or the profile cannot resolve it.
  */
-export const PREINSTALLED_BUNDLES = ['dsh-ops', '@liustack/modsearch'] as const
+export const PREINSTALLED_BUNDLES: readonly string[] = readPortableBundles()
+function readPortableBundles(): readonly string[] {
+  const manifest = JSON.parse(readFileSync(fileURLToPath(new URL('../portable-bundles.json', import.meta.url)), 'utf8')) as {
+    bundles?: unknown
+  }
+  const bundles = manifest.bundles
+  if (!Array.isArray(bundles) || bundles.length === 0 || !bundles.every(item => typeof item === 'string' && item.length > 0)) {
+    throw new Error('portable-bundles.json must list at least one package name')
+  }
+  return bundles
+}
 export const WEB_BUNDLES = [...PROFILE_TEMPLATES.web!.bundles, ...PREINSTALLED_BUNDLES]
 const NEXT_BUNDLE_PATCH = fileURLToPath(new URL('../cordis.patch.yml', import.meta.url))
 export const AA_PACKAGE = '@agents-anywhere/dsh-bridge-next'

@@ -498,5 +498,8 @@
       "**/node_modules/dsh-ops/**/*",
       "**/node_modules/@liustack/modsearch/**/*"
     ]
-  }
+  },
+  "files": [
+    "portable-bundles.json"
+  ]
 }

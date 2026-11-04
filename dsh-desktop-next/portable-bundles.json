@@ -1,0 +1,6 @@
+{
+  "bundles": [
+    "dsh-ops",
+    "@liustack/modsearch"
+  ]
+}

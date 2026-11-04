@@ -134,9 +134,46 @@ jobs:
           mkdir -p "$pkg/registry/store" "$pkg/registry/cache" "$pkg/home"
           node_bin="$pkg/resources/runtime/x64/primary-runtime/dependencies/node/bin/node"
           pnpm_mjs="$pkg/resources/app.asar.unpacked/node_modules/pnpm/bin/pnpm.mjs"
-          "$node_bin" "$pnpm_mjs" store add --store-dir "$pkg/registry/store" \
-            dsh-ops@0.4.4 @liustack/modsearch@5.10.11 commander@15.0.0 undici@7.30.0
-          npm pack --silent --pack-destination "$pkg/registry" dsh-ops@0.4.4 @liustack/modsearch@5.10.11
+          # The preinstalled bundle list is data, not code: portable-bundles.json plus the versions
+          # in package.json decide what the offline store and the registry carry.
+          specs=$(node -e "const b=require('./dsh-desktop-next/portable-bundles.json').bundles;const d=require('./dsh-desktop-next/package.json').dependencies;console.log(b.map(n=>n+'@'+(d[n]??'latest')).join(' '))")
+          echo "preinstalled plugins: $specs"
+          # `pnpm store add` stores only the named packages, not their dependency closure, so an
+          # offline install would miss commander/undici. A scratch `pnpm add` resolves the closure
+          # into the same store.
+          scratch=$(mktemp -d)
+          printf '{"name":"store-seed","private":true}\n' > "$scratch/package.json"
+          ( cd "$scratch" && "$node_bin" "$pnpm_mjs" add --store-dir "$pkg/registry/store" $specs )
+          rm -rf "$scratch"
+          npm pack --silent --pack-destination "$pkg/registry" $specs
+          echo "SPECS=$specs" >> "$GITHUB_ENV"
+      - name: Pack the standalone offline plugin bundle
+        run: |
+          set -euo pipefail
+          version=$(node -p "require('./dsh-desktop-next/package.json').version")
+          pkg=dsh-desktop-next/dist/linux-unpacked
+          node_bin="$pkg/resources/runtime/x64/primary-runtime/dependencies/node/bin/node"
+          pnpm_mjs="$pkg/resources/app.asar.unpacked/node_modules/pnpm/bin/pnpm.mjs"
+          out=offline/plugins-offline
+          mkdir -p "$out/store" "$out/cache"
+          scratch=$(mktemp -d)
+          printf '{"name":"store-seed","private":true}\n' > "$scratch/package.json"
+          ( cd "$scratch" && "$node_bin" "$pnpm_mjs" add --store-dir "$out/store" $SPECS )
+          rm -rf "$scratch"
+          npm pack --silent --pack-destination "$out" $SPECS
+          cp dsh-desktop-next/portable/install-plugins.sh dsh-desktop-next/portable/install-plugins.cmd "$out"/
+          {
+            echo "# 离线插件包 $version"
+            echo
+            echo "把本目录放到便捷包旁边（或任意位置），先启动一次便捷包生成 Profile，然后运行："
+            echo
+            echo '    ./install-plugins.sh            # Linux'
+            echo '    install-plugins.cmd             # Windows'
+            echo
+            echo "脚本用包内 node + pnpm 从 store/ 离线安装，插件清单：$SPECS"
+          } > "$out/README.md"
+          tar -czf "DSH-NEXT-${version}-offline-plugins.tar.gz" -C offline plugins-offline
+          du -sh "DSH-NEXT-${version}-offline-plugins.tar.gz"
       - name: Launch the real window under Xvfb and check the portable data root
         run: |
           set -euo pipefail
@@ -155,7 +192,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: dsh-next-portable-linux-x64
-          path: DSH-NEXT-*-linux-x64-portable.tar.gz
+          path: |
+            DSH-NEXT-*-linux-x64-portable.tar.gz
+            DSH-NEXT-*-offline-plugins.tar.gz
           if-no-files-found: error
 
   release:
