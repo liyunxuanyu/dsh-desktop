@@ -5,8 +5,15 @@ set -eu
 DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 export DSH_DESKTOP_NEXT_HOME="$DIR/home/data"
 export NPM_CONFIG_USERCONFIG="$DIR/.npmrc"
-export NPM_CONFIG_STORE_DIR="$DIR/registry/store"
-export NPM_CONFIG_CACHE="$DIR/registry/cache"
-export NPM_CONFIG_PREFER_OFFLINE="true"
 mkdir -p "$DSH_DESKTOP_NEXT_HOME"
+# pnpm 11 只从 pnpm-workspace.yaml（或命令行）读 storeDir/cacheDir；npmrc 与 NPM_CONFIG_* 都不生效。
+# 用绝对路径写一份，界面里装插件就直接用包内离线仓库。
+for profile in "$DSH_DESKTOP_NEXT_HOME"/profiles/*/; do
+  [ -d "$profile" ] || continue
+  cat > "$profile/pnpm-workspace.yaml" <<YAML
+storeDir: $DIR/registry/store
+cacheDir: $DIR/registry/cache
+preferOffline: true
+YAML
+done
 exec "$DIR/dsh-desktop-next" "$@"

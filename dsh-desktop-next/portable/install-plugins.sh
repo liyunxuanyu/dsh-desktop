@@ -59,12 +59,22 @@ if [ "$LIST_ONLY" -eq 1 ]; then
 fi
 
 export DSH_DESKTOP_NEXT_HOME="${DSH_DESKTOP_NEXT_HOME:-$PKG/home/data}"
+PROFILE_DIR="$DSH_DESKTOP_NEXT_HOME/profiles/desktop"
+if [ ! -d "$PROFILE_DIR" ]; then
+  echo "Profile 尚未创建：请先启动一次便捷包，再运行本脚本" >&2
+  exit 1
+fi
 # 不导出 NPM_CONFIG_CACHE/_STORE_DIR：大写变量会让 pnpm 的 cacheDir 解析成空值，
 # 路径统一用命令行标志传入（camelCase，等号形式）。
 unset NPM_CONFIG_CACHE NPM_CONFIG_STORE_DIR 2>/dev/null || true
 export NPM_CONFIG_USERCONFIG="$PKG/.npmrc"
+# pnpm 11 从 pnpm-workspace.yaml 读 storeDir/cacheDir；在 Profile 里写绝对路径，命令行标志作为兜底。
+cat > "$PROFILE_DIR/pnpm-workspace.yaml" <<YAML
+storeDir: $BUNDLE/store
+cacheDir: $BUNDLE/cache
+preferOffline: true
+YAML
 
-PROFILE_DIR="$DSH_DESKTOP_NEXT_HOME/profiles/desktop"
 NODE="$PKG/resources/runtime/x64/primary-runtime/dependencies/node/bin/node"
 PNPM="$PKG/resources/app.asar.unpacked/node_modules/pnpm/bin/pnpm.mjs"
 
@@ -72,11 +82,6 @@ if [ ! -x "$NODE" ] || [ ! -f "$PNPM" ]; then
   echo "便捷包缺少内置 node/pnpm，无法安装插件" >&2
   exit 1
 fi
-if [ ! -d "$PROFILE_DIR" ]; then
-  echo "Profile 尚未创建：请先启动一次便捷包，再运行本脚本" >&2
-  exit 1
-fi
-
 echo "将要安装："
 list_plugins
 cd "$PROFILE_DIR"
