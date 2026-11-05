@@ -637,3 +637,62 @@ Windows PowerShell 5.1 正确读取。
 - 单元测试 983 通过；`tsc --noEmit` 通过；
 - 包内一切可变数据（数据、插件、store、缓存、状态、下载的运行时）都在包目录内，
   `~/.cache`、`~/.local`、`~/.npm` 不再产生写入，删掉 `home/` 即可把包转交他人。
+
+## 修复：包内 uv 不可执行（tag `v2.0.21-next-portable.21`）
+
+### 症状与根因
+
+在**发布的 `.20` 包**上实测：`resources/app.asar.unpacked/node_modules/@dataiku/uv-linux-x64/bin/uv`
+权限是 `644`，`$UV --version` 直接 `Permission denied`。凡是用 uv 下载 Python 运行时的路径都会失败。
+
+不是解压丢权限。两处原始记录都是 644：
+
+```
+# npm 上的 tarball 原样
+-rw-r--r-- 0/0 55110904  package/bin/uv
+
+# 发布包 tar 内的记录
+-rw-r--r-- runner/runner 55110904 linux-unpacked/.../@dataiku/uv-linux-x64/bin/uv
+```
+
+根因：`@dataiku/uv-linux-x64` 的 `package.json` **没有 `bin` 字段**（只有主包 `@dataiku/uv` 有），
+npm 只为自己链接的 `bin` 条目写权限位，因此这个原始二进制从安装那一刻就是 0644。
+同批的 `node`、`landlock-run`、`ripgrep` 都正常，只有它。
+
+### 修法
+
+`scripts/prepare-payload.ts` 新增 `restoreExecutableBits(destination, target.platform)`，
+在 `copyPackage` 拷完每个依赖包后调用：
+
+- 只看包根下的 `bin/` 目录（深度 ≤3）；
+- 用**文件头魔数**判断是不是原生镜像（ELF / Mach-O 四种字节序），不看文件名——
+  这样以后新增任何平台包都自动覆盖，不需要维护白名单；
+- 仅当**没有任何执行位**（`mode & 0o111 === 0`）时才改成 `0755`；
+  已经可执行的（例如 0750）保持原样，不强加权限；
+- Windows 直接跳过（按扩展名启动，不需要权限位）。
+
+### 验证
+
+单元测试 `tests/payload-executable-bits.spec.ts`（3 条）：复原 0644 的 ELF、脚本/文本/已可执行文件不受影响、
+Windows 与非 `bin/` 目录不动。测试还暴露过一个真实边界：最初的判断条件写作
+`(mode & 0o111) === 0o111`，会把 0750 当成"需要修"，改成 `!== 0` 才是正确语义。
+
+全量：**112 文件 / 986 通过 / 17 跳过**；`tsc --noEmit` 通过。
+
+CI 新增断言（Linux 与 Windows 两侧）：若包内有 uv，则 `test -x` 必须成立并执行 `uv --version`。
+
+### 同一轮实测的另外三个事实（都在真实 `.20` 包上）
+
+1. **插件联网安装确实落在包内**：干净 HOME 下用包自带 `dsh-desktop-next dsh plugin --profile web add
+   dsh-univer-office dsh-pet`，52 个包下载完成；`registry/store` 25→430 MB，`registry/cache` 3→12 MB，
+   profile 依赖写入，**假 HOME 全程为空**。
+2. **包可整体搬迁**：`mv` 到另一个路径后直接启动，返回 200，entry 数 72，
+   `dsh-pet` 与 `dsh-univer-office` 均在加载列表里，假 HOME 仍为空——相对路径设计成立。
+3. **运行时临时下载也进包**：用包内 uv 下载 Python，只给 `XDG_*`，
+   结果 `cpython-3.12.13` 落在 `home/bin/python3.12`、`home/share` 104 MB，假 HOME 为空。
+
+### 说明
+
+本机无法启动 GUI（缺 xkeyboard 数据，Xvfb 键盘初始化失败），上述验证走的是包自带的 CLI 通道
+（`./dsh-desktop-next --no-sandbox dsh web`），跑的是真实 Host 与真实插件加载，只是没有窗口。
+窗口层验证在 CI 的 Xvfb 里完成。

@@ -266,6 +266,13 @@ jobs:
           cat "$pkg/registry/plugins.json"
           test -f "$pkg/tools/refresh-library.mjs" || { echo 'library refresh tool missing from the package'; exit 1; }
           test -f "$pkg/update-plugins.sh" || { echo 'update-plugins.sh missing from the package'; exit 1; }
+          # The uv platform packages declare no bin entry, so npm delivers their binary as 0644
+          # and any component that spawns it fails with EACCES. Packaging restores the mode.
+          uv="$pkg/resources/app.asar.unpacked/node_modules/@dataiku/uv-linux-x64/bin/uv"
+          if [ -f "$uv" ]; then
+            test -x "$uv" || { echo 'the bundled uv is not executable'; ls -l "$uv"; exit 1; }
+            "$uv" --version
+          fi
           # cmd.exe reads batch files by byte offset: an LF-only file can lose a command.
           grep -q $'\r' "$pkg/update-plugins.cmd" || { echo 'update-plugins.cmd lost its CRLF endings'; exit 1; }
           grep -q $'\r' "$pkg/DSH-NEXT.cmd" || { echo 'DSH-NEXT.cmd lost its CRLF endings'; exit 1; }

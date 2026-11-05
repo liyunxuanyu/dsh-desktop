@@ -1,5 +1,5 @@
 /** Materialize the Next payload independently of Electron Builder, then seal it. */
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, closeSync, cpSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, readSync, realpathSync, rmSync, statSync, writeFileSync, type Dirent } from 'node:fs'
 import { createRequire } from 'node:module'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -208,11 +208,63 @@ function copyPackage(pkg: ClosurePackage, modules: string, target: NextPackaging
   const destination = join(modules, ...pkg.destination.split('/'))
   const keep: Keep = (path, name) => path.split('/')[0] !== 'node_modules' && !IGNORED_NAMES.has(name)
     && nextRuntimeFileExclusion(`${pkg.destination}/${path}`, target) === undefined
-  if (!pkg.workspace) { copyTree(pkg.source, destination, keep); return }
+  if (!pkg.workspace) {
+    copyTree(pkg.source, destination, keep)
+    restoreExecutableBits(destination, target.platform)
+    return
+  }
   for (const entry of publishedEntries(pkg.source)) {
     if (!keep(entry, basename(entry))) continue
     copyTree(join(pkg.source, entry), join(destination, entry), (path, name) => keep(`${entry}/${path}`, name))
   }
+  restoreExecutableBits(destination, target.platform)
+}
+
+/** Mach-O and ELF magic numbers: the images a POSIX system starts by path. */
+const NATIVE_MAGIC = [[0x7f, 0x45, 0x4c, 0x46], [0xfe, 0xed, 0xfa, 0xce], [0xfe, 0xed, 0xfa, 0xcf],
+  [0xce, 0xfa, 0xed, 0xfe], [0xcf, 0xfa, 0xed, 0xfe], [0xca, 0xfe, 0xba, 0xbe]]
+const EXECUTABLE_MODE = 0o755
+
+/** Whether the leading bytes describe a native executable rather than a script or data file. */
+function isNativeExecutable(path: string): boolean {
+  const head = Buffer.alloc(4)
+  let descriptor: number | undefined
+  try {
+    descriptor = openSync(path, 'r')
+    if (readSync(descriptor, head, 0, 4, 0) !== 4) return false
+  } catch { return false } finally { if (descriptor !== undefined) closeSync(descriptor) }
+  return NATIVE_MAGIC.some(magic => magic.every((byte, index) => head[index] === byte))
+}
+
+/**
+ * Restore the executable bit of a native image a package published without one.
+ *
+ * npm records modes only for `bin` entries it links, and a platform package can ship a raw
+ * binary it never declares (`@dataiku/uv-linux-x64` has no `bin` field), so its `bin/uv`
+ * arrives as 0644 and spawning it fails with EACCES. The decision is the file's own bytes,
+ * never a name list, so a new platform package is covered without editing this function.
+ * @param packageDir - Copied package directory.
+ * @param platform - Packaged Platform; Windows starts images by extension and needs no mode.
+ */
+export function restoreExecutableBits(packageDir: string, platform: NodeJS.Platform): void {
+  if (platform === 'win32') return
+  try { if (!readdirSync(packageDir).includes('bin')) return } catch { return }
+  const walk = (dir: string, depth: number): void => {
+    if (depth > 3) return
+    let children: Dirent[]
+    try { children = readdirSync(dir, { withFileTypes: true }) } catch { return }
+    for (const child of children) {
+      const path = join(dir, child.name)
+      if (child.isDirectory()) { walk(path, depth + 1); continue }
+      if (!child.isFile() || !isNativeExecutable(path)) continue
+      try {
+        // Only an image nobody can run is repaired; a package that chose 0750 keeps its mode.
+        if ((statSync(path).mode & 0o111) !== 0) continue
+        chmodSync(path, EXECUTABLE_MODE)
+      } catch { /* A read-only tree reports its own failure when the binary runs. */ }
+    }
+  }
+  walk(join(packageDir, 'bin'), 0)
 }
 
 /** Options of one payload preparation. */
